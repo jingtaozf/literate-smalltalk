@@ -1,0 +1,572 @@
+# -*- encoding:utf-8 Mode: POLY-ORG; org-src-preserve-indentation: t; -*- ---
+#+TITLE:  Literate programming tool write smalltalk in org mode.
+#+SubTitle: based on shampoo.
+#+OPTIONS: toc:2
+#+Startup: noindent
+#+PROPERTY: header-args :results silent
+#+LATEX_HEADER: % copied from lstlang1.sty, to add new language support to Emacs Lisp.
+#+LATEX_HEADER: \lstdefinelanguage{elisp}[]{lisp} {}
+#+LATEX_HEADER: \lstloadlanguages{elisp}
+#+PROPERTY: header-args
+#+PROPERTY: literate-lang elisp
+#+PROPERTY: literate-load yes
+
+* Table of Contents                                            :TOC:noexport:
+- [[#introduction][Introduction]]
+- [[#preparation][Preparation]]
+- [[#how-to-do-it][How to do it?]]
+  - [[#find-packagess-sub-category][Find packages's sub category]]
+- [[#utilities][utilities]]
+  - [[#receive-response-from-pharo][receive response from pharo.]]
+  - [[#synchronous-call-to-shampoo][synchronous call to shampoo]]
+  - [[#update-shampoo-side][update shampoo side]]
+  - [[#forward-to-begin-of-function][forward to begin of function]]
+  - [[#current-symbol-at-point][current symbol at point]]
+  - [[#previous-symbol-at-point][previous symbol at point]]
+- [[#apis][APIs]]
+  - [[#get-namespaces][get namespaces]]
+  - [[#get-classes-of-one-namespace][get classes of one namespace]]
+  - [[#cache-for-classes-as-index][cache for classes as index]]
+  - [[#get-namespace-of-one-class][get namespace of one class]]
+  - [[#get-class-definition][get class definition]]
+  - [[#get-categories-of-one-class][get categories of one class]]
+  - [[#get-methods-of-one-category][get methods of one category]]
+  - [[#get-method-source][get method source]]
+  - [[#eval-code][eval code]]
+  - [[#compile-class][compile class]]
+  - [[#compile-method][compile method]]
+  - [[#format-code][format code]]
+  - [[#search-a-pattern-in-a-buffer-and-return-its-position][search a pattern in a buffer and return its position]]
+  - [[#find-definition-of-class-in-org-files][find definition of class in org files]]
+  - [[#find-definition-of-a-class-method-in-org-files][find definition of a class method in org files]]
+- [[#fetch-all-source-of-a-package-to-an-org-section][Fetch all source of a package to an org section.]]
+- [[#update-codes][update codes]]
+- [[#jump-to-implementations][jump to implementations.]]
+  - [[#basic-idea][basic idea]]
+  - [[#xref-interfaces][xref interfaces]]
+  - [[#implementation][implementation]]
+- [[#babel-support][babel support]]
+  - [[#optionally-define-a-file-extension-for-this-language][optionally define a file extension for this language]]
+  - [[#optionally-declare-default-header-arguments][optionally declare default header arguments]]
+  - [[#source-code-execution][Source Code Execution]]
+- [[#test][Test]]
+  - [[#eval-codes][eval codes]]
+
+* Introduction
+This is an attemp to write smalltalk codes in org mode,
+and interact with remote [[https://pharo.org/][pharo]] images based on [[https://github.com/dmatveev/shampoo-emacs][shampoo]].
+* Preparation
+You need to install [[https://github.com/jingtaozf/shampoo-pharo.git][shampo for pharo]] in pharo and start shampo server by the following codes
+#+begin_src st
+ShampooServer startOn: 9092 login: 'login' pass: '1234'.
+#+end_src
+Then you can install [[https://github.com/dmatveev/shampoo-emacs][shampoo for Emacs]] and connect to this server by command =shampoo-connect=,
+and argument =login@localhost:9092=, password =1234=.
+
+* How to do it?
+We interact with pharo via shampoo, and hack shampoo to fetch/update codes in an org file.
+
+** Find packages's sub category
+https://github.com/pharo-open-documentation/pharo-wiki/blob/master/General/Extensions.md#define-an-extension-method-programmatically
+
+* utilities
+** receive response from pharo.
+We use an advice function to hood the response sent to pharo.
+
+To simplify our process, we will disable old shampoo response handler under our invocation.
+#+BEGIN_SRC elisp
+(defvar literate-smalltalk-shampoo-p t)
+#+END_SRC
+We will set this variable to =nil= before sending our message and reset it to =t= after getting response.
+The default value of it is =t= so our invocation will not affect original shampoo operations.
+
+We use a special variable to hold our response result.
+#+BEGIN_SRC elisp
+(defvar literate-smalltalk-current-response nil)
+(defvar literate-smalltalk-last-response nil)
+#+END_SRC
+
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-shampoo-handle-response (old-function resp)
+  (if literate-smalltalk-shampoo-p
+    (funcall old-function resp)
+    (setf literate-smalltalk-current-response resp)))
+
+(eval-after-load "shampoo"
+  '(advice-add 'shampoo-handle-response :around #'literate-smalltalk-shampoo-handle-response))
+#+END_SRC
+** synchronous call to shampoo
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-shampoo-call (message)
+  (setf literate-smalltalk-current-response nil
+        literate-smalltalk-shampoo-p nil)
+  (with-~shampoo~
+      (shampoo-send-message
+       message))
+  (cl-loop for i from 0 to 100
+           if literate-smalltalk-current-response
+           do (return)
+           else do (sit-for 0.1))
+  (unless literate-smalltalk-current-response
+    (error "Failed to get response from shampoo."))
+  (setf literate-smalltalk-last-response literate-smalltalk-current-response
+        literate-smalltalk-current-response nil
+        literate-smalltalk-shampoo-p t)
+  literate-smalltalk-last-response)
+#+END_SRC
+** update shampoo side
+#+BEGIN_SRC elisp
+(defvar literate-smalltalk-valid-sides '(:class :instance))
+(defun literate-smalltalk-update-side (side)
+  (assert (find side literate-smalltalk-valid-sides))
+  (with-~shampoo~
+      (setf (shampoo-current-side ~shampoo~) side)))
+#+END_SRC
+** forward to begin of function
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-beginning-of-defun-function (arg)
+  (if (> arg 0)
+    (progn
+      (search-backward "#+BEGIN_SRC ")
+      (forward-line))
+    (literate-smalltalk-end-of-defun-function)))
+
+(defun literate-smalltalk-end-of-defun-function (arg)
+  (search-forward "#+END_SRC")
+  (forward-line -1))
+
+(defun install-literate-smalltalk-beginning-of-defun-function ()
+  (make-local-variable 'beginning-of-defun-function) 
+  (make-local-variable 'end-of-defun-function)
+  (setf beginning-of-defun-function 'literate-smalltalk-beginning-of-defun-function)
+  (setf end-of-defun-function 'literate-smalltalk-end-of-defun-function)
+  )
+(add-hook 'shampoo-code-mode-hook 'install-literate-smalltalk-beginning-of-defun-function)
+#+END_SRC
+** current symbol at point
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-current-symbol-at-point ()
+  (save-excursion
+    (let* ((beg (re-search-backward "[ \t\n(]" nil t))
+           (end (progn
+                  (forward-char)
+                  (re-search-forward "[ \t\n]" nil t))))
+      (string-trim (buffer-substring-no-properties beg end) "[ \t\n\r(]+"))))
+#+END_SRC
+** previous symbol at point
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-previous-symbol-at-point ()
+  (save-excursion
+    (re-search-backward "[ \t\n]" nil t)
+    (forward-word -1)
+    (literate-smalltalk-current-symbol-at-point)))
+#+END_SRC
+
+* APIs
+** get namespaces
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-namespaces ()
+  (let ((resp (literate-smalltalk-shampoo-call 
+                   (shampoo-make-namespaces-rq :id (shampoo-give-id)))))
+    (loop for item in (shampoo-response-items resp)
+          for text = (shampoo-response-aggr-item item)
+          if text
+            collect text)))
+
+(defun literate-smalltalk-select-namespace ()
+  (helm-select-list "Please select a namespace: " (literate-smalltalk-namespaces)))
+#+END_SRC
+** get classes of one namespace
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-classes (namespace)
+  (let ((resp (literate-smalltalk-shampoo-call 
+                   (shampoo-make-classes-rq :id (shampoo-give-id) :ns namespace))))
+    (loop for item in (shampoo-response-items resp)
+          for text = (shampoo-response-aggr-item item)
+          if text
+            collect text)))
+
+(defun literate-smalltalk-select-a-class (namespace)
+  (helm-select-list "Please select a namespace: " (literate-smalltalk-classes namespace)))
+#+END_SRC
+** cache for classes as index
+It is slow to build such indexed from remote pharo, let store it to a global variable and cache it to local file.
+#+BEGIN_SRC elisp
+(defvar literate-smalltalk-indexed-classes-file "~/.emacs.d/smalltalk.classes.txt")
+(defvar literate-smalltalk-indexed-classes (make-hash-table :test 'equal))
+(defun literate-smalltalk-index-classes ()
+  (interactive)
+  (loop for namespace in (literate-smalltalk-namespaces)
+        do (message "Indexing %s" namespace)
+           (loop for class in (literate-smalltalk-classes namespace)
+                 do (setf (gethash class literate-smalltalk-indexed-classes) namespace)))
+  (with-current-buffer (find-file-noselect literate-smalltalk-indexed-classes-file)
+    (erase-buffer)
+    (fundamental-mode)
+    (maphash (lambda (k v)
+               (insert k " " v "\n"))
+             literate-smalltalk-indexed-classes)
+    (save-buffer)
+    (kill-current-buffer)))
+
+(defun literate-smalltalk-restore-indexed-classes ()
+  (interactive)
+  (message "start restoring...")
+  (setf literate-smalltalk-indexed-classes (make-hash-table :test 'equal))
+  (cl-loop for line in (s-split "\n" (f-read literate-smalltalk-indexed-classes-file) t)
+           for items = (s-split " " line)
+           do (setf (gethash (car items) literate-smalltalk-indexed-classes) (second items)))
+  (message "restoring...done"))
+#+END_SRC
+** get namespace of one class
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-namespace-of-a-class (class)
+  (when (= 0 (hash-table-count literate-smalltalk-indexed-classes))
+    (error "Please build the cache before use namespace of a class.")) 
+  (gethash class literate-smalltalk-indexed-classes))
+
+(defun literate-smalltalk-namespace-of-current-symbol ()
+  (interactive)
+  (let ((class (thing-at-point 'symbol)))
+    (message "%s's namespace is %s" class (literate-smalltalk-namespace-of-a-class class))))
+#+END_SRC
+
+** get class definition
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-class (namespace class side)
+  (let ((resp (literate-smalltalk-shampoo-call 
+               (shampoo-make-class-rq :id (shampoo-give-id) :ns namespace :class class :side (shampoo-side-sym-as-param side)))))
+    (with-temp-buffer
+      (if (eq side :instance)
+        (with-~shampoo~
+            (shampoo-print-class-instance-from-response resp)
+          (setf (shampoo-current-class-category ~shampoo~)
+                  (shampoo-response-attr 'category resp)))
+        (shampoo-print-class-class-from-response resp))
+      (trim-string (buffer-string)))))
+
+#+END_SRC
+
+** get categories of one class
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-categories (namespace class side)
+  (let ((resp (literate-smalltalk-shampoo-call 
+                   (shampoo-make-cats-rq :id (shampoo-give-id) :ns namespace
+                                         :class class :side (shampoo-side-sym-as-param side)))))
+    (loop for item in (shampoo-response-items resp)
+          for text = (shampoo-response-aggr-item item)
+          if text
+            collect text)))
+
+(defun literate-smalltalk-select-a-category (namespace class)
+  (helm-select-list "Please select a namespace: " (literate-smalltalk-categories namespace class)))
+#+END_SRC
+** get methods of one category
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-category-methods (namespace class category side)
+  (let ((resp (literate-smalltalk-shampoo-call 
+                   (shampoo-make-methods-rq :id (shampoo-give-id) :ns namespace
+                                            :class class :category category
+                                            :side (shampoo-side-sym-as-param side)))))
+    (loop for item in (shampoo-response-items resp)
+          for text = (shampoo-response-aggr-item item)
+          if text
+            collect text)))
+#+END_SRC
+** get method source
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-method-source (namespace class method side)
+  (let ((resp (literate-smalltalk-shampoo-call 
+               (shampoo-make-method-rq :id (shampoo-give-id) :ns namespace
+                                       :class class
+                                       :method method
+                                       :side (shampoo-side-sym-as-param side)))))
+    (decode-coding-string (shampoo-response-enclosed-string resp) 'latin-1)))
+#+END_SRC
+** eval code
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-eval (code)
+  (let ((resp (literate-smalltalk-shampoo-call (shampoo-make-eval-rq
+                                                :id (shampoo-give-id)
+                                                :type "PrintIt"
+                                                :code code))))
+    (when (not (shampoo-response-is-failure resp))
+      (shampoo-response-enclosed-string resp))))
+#+END_SRC
+** compile class
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-compile-class (ns side code)
+  (with-~shampoo~
+      (setf (shampoo-current-side ~shampoo~) side))
+  (let ((class-data (if (equal :class side)
+                      (shampoo-parse-class-side-message code)
+                      (shampoo-parse-subclassing-message code))))
+    (case side
+      (:instance
+       (multiple-value-bind (superspace superclass)
+           (let ((info
+                  (with-~shampoo~
+                      (shampoo-dialect-extract-parent
+                       (shampoo-current-smalltalk ~shampoo~)
+                       (shampoo-dict-get :super class-data)))))
+             (multiple-value-bind (superspace superclass) info
+               (values (if (null superspace)
+                         ns
+                         superspace)
+                       superclass)))
+         (shampoo-dict-put
+          :key   :super
+          :value superclass
+          :into  class-data)
+         (let ((resp (literate-smalltalk-shampoo-call
+                      (shampoo-make-compile-instance-rq
+                       :id (shampoo-give-id)
+                       :ss superspace
+                       :side (shampoo-side)
+                       :ns ns
+                       :cat (shampoo-dict-get :category class-data)
+                       :desc class-data))))
+           (if (shampoo-response-is-success resp)
+             (message "Compile class done.")
+             (message "Compile class failed.")))))
+      (:class
+       (let ((resp (literate-smalltalk-shampoo-call
+                    (shampoo-make-compile-class-rq
+                     :id (shampoo-give-id)
+                     :ss "Smalltalk"
+                     :side (shampoo-side)
+                     :ns ns
+                     :desc class-data))))
+         (if (shampoo-response-is-success resp)
+           (message "Compile class done.")
+           (message "Compile class failed.")))))))
+#+END_SRC
+** compile method
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-compile-method (ns class side category code)
+  (let ((resp (literate-smalltalk-shampoo-call (shampoo-make-compile-method-rq
+                                                :id (shampoo-give-id)
+                                                :ns ns
+                                                :class class
+                                                :side (shampoo-side-sym-as-param side)
+                                                :category category
+                                                :code code))))
+    (if (shampoo-response-is-success resp)
+      (message "Compile method done.")
+      (message "Compile method failed."))))
+#+END_SRC
+
+** format code
+[[file:~/projects/smalltalk/pharo/src/Deprecated80/PluggableTextMorph.class.st::tree := RBParser parseMethod: source onError: \[ :msg :pos | ^ self \].][RBParser parseMethod]]
+** search a pattern in a buffer and return its position
+#+BEGIN_SRC elisp
+(defvar literate-smalltalk-libraries-literate-path "~/Pharo/literate/")
+(defun literate-smalltalk-search-pattern (pattern)
+  (save-restriction
+    (loop for buf in (cons (current-buffer)
+                           (mapcar 'find-file-noselect (directory-files literate-smalltalk-libraries-literate-path t ".org$")))
+          do (with-current-buffer buf
+               (save-excursion
+                 (goto-char (point-min))
+                 (when (re-search-forward pattern nil t)
+                   (forward-line)
+                   (goto-char (line-beginning-position))
+                   (return (list (current-buffer) (point)))))))))
+#+END_SRC
+
+** find definition of class in org files
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-find-class-definition (class-name)
+  (literate-smalltalk-search-pattern (format ":type class :name %s " class-name)))
+#+END_SRC
+** find definition of a class method in org files
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-find-method-definition (class-name method-name)
+  (literate-smalltalk-search-pattern (format ":type method :name %s.*? :class %s" method-name class-name)))
+#+END_SRC
+
+* Fetch all source of a package to an org section.
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-namespace-to-org-section (&optional namespaces)
+  (interactive)
+  (let ((namespaces (or namespaces (literate-smalltalk-select-namespace))))
+    (unless (listp namespaces)
+      (setf namespaces (list namespaces)))
+    (cl-loop for namespace in namespaces
+             do (insert "\n* PACKAGE " namespace "\n")
+             (loop for class in (literate-smalltalk-classes namespace)
+                   do (insert "** CLASS " class "\n")
+                      (insert "*** SUBCLASS \n")
+                      (insert "#+BEGIN_SRC st :type class :name " class
+                              " :side instance"
+                              " :ns " namespace "\n")
+                      (insert (literate-smalltalk-class namespace class :instance))
+                      (insert "\n#+END_SRC\n")
+                      (insert "*** CLASS \n")
+                      (insert "#+BEGIN_SRC st :type class :name " class
+                              " :side class"
+                              " :ns " namespace "\n")
+                      (insert (literate-smalltalk-class namespace class :class))
+                      (insert "\n#+END_SRC\n")
+                      (loop for side in literate-smalltalk-valid-sides
+                            for side-name = (shampoo-side-sym-as-param side)
+                            do (loop for category in (literate-smalltalk-categories namespace class side)
+                                     for normalized-category = (replace-regexp-in-string " " "@" category)
+                                     do (loop for method in (literate-smalltalk-category-methods
+                                                                     namespace class category side)
+                                              do (insert "*** METHOD "
+                                                         method "                                            "
+                                                                (symbol-name side)
+                                                         ":" normalized-category ":" "\n")
+                                                 (insert "#+BEGIN_SRC st :type method"
+                                                         " :name " method
+                                                         " :class " class
+                                                         " :side " side-name 
+                                                         " :cat \"" category "\""
+                                                         " :ns " namespace "\n")
+                                                 (insert (literate-smalltalk-method-source
+                                                                  namespace class method side))
+                                                 (insert "\n#+END_SRC\n")))))
+             (message "namedspace '%s' has been added." namespace))))
+#+END_SRC
+* update codes
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-update-source ()
+  (interactive)
+  (let* ((info (org-babel-get-src-block-info))
+         (params (nth 2 info))
+         (type (intern (concat ":" (cdr (assq :type params)))))
+         (side (if (cdr (assq :side params))
+                 (intern (concat ":" (cdr (assq :side params))))
+                 :instance))
+         (code (case type
+                 (:method
+                     (literate-smalltalk-method-source
+                      (cdr (assq :ns params))
+                      (cdr (assq :class params))
+                      (cdr (assq :name params))
+                      side))
+                 (:class
+                  (literate-smalltalk-class (cdr (assq :ns params)) (cdr (assq :name params)) side))
+                 (t
+                  (error "Unknown supported type %s" type))))
+         (body (and code (decode-coding-string code 'latin-1))))
+    (when body
+      (let ((block-info (second (org-element-context))))
+        (replace-region-contents (plist-get block-info :begin)
+                                 (plist-get block-info :end)
+                                 (lambda ()
+                                   (let* ((beg-src-line (progn (goto-char (point-min))
+                                                               (buffer-substring-no-properties
+                                                                (line-beginning-position)
+                                                                (line-end-position)))))
+                                     (concat beg-src-line "\n"
+                                             body "\n"
+                                             "#+END_SRC\n"))))))))
+#+END_SRC
+
+* jump to implementations.
+** basic idea
+We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref backend to search.
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-xref-backend ()
+  'xref-st)
+
+(defun install-literate-smalltalk-xref-backend ()
+  (make-local-variable 'xref-backend-functions)
+  (setf xref-backend-functions '(literate-smalltalk-xref-backend)))
+(add-hook 'shampoo-code-mode-hook 'install-literate-smalltalk-xref-backend)
+#+END_SRC
+** xref interfaces
+#+BEGIN_SRC elisp
+(cl-defmethod xref-backend-identifier-at-point ((_backend (eql xref-st)))
+  (literate-smalltalk-current-symbol-at-point))
+
+(cl-defmethod xref-backend-definitions ((_backend (eql xref-st)) symbol)
+  (literate-smalltalk--xref-find-definitions symbol))
+#+END_SRC
+** implementation
+#+BEGIN_SRC elisp
+(defun literate-smalltalk--xref-find-definitions (name)
+  (interactive)
+  (let* ((class? (<= ?A (aref name 0) ?Z))
+         (class-name (unless class?
+                       (literate-smalltalk-previous-symbol-at-point)))
+         (buf-pos (if class?
+                    (literate-smalltalk-find-class-definition name)
+                    (literate-smalltalk-find-method-definition class-name name))))
+    (when buf-pos
+      (list (xref-make (if class?
+                         name
+                         (concat class-name ">>" name))
+                       (xref-make-buffer-location (first buf-pos)
+                                                (second buf-pos)))))))
+#+END_SRC
+
+* babel support
+** optionally define a file extension for this language
+#+BEGIN_SRC elisp
+(add-to-list 'org-babel-tangle-lang-exts '("st" . "st"))
+#+END_SRC
+** optionally declare default header arguments
+#+BEGIN_SRC elisp
+(defvar org-babel-default-header-args:st '())
+#+END_SRC
+** Source Code Execution
+*** babel entry
+This is the main function which is called to evaluate a code block.
+
+This function will evaluate the body of the source code and
+return the results as emacs-lisp depending on the value of the
+=:results= header argument
+
+All header arguments specified by the user will be available in the =PARAMS= variable.
+#+BEGIN_SRC elisp
+(defun org-babel-execute:st (body params)
+  "Execute a block of smalltalk code with org-babel.
+This function is called by `org-babel-execute-src-block',
+Argument BODY: the code body
+Argument PARAMS: the input parameters."
+  (let* ((result-params (cdr (assq :result-params params)))
+         (results (literate-smalltalk-execute-code-block body params)))
+    (when results
+      (org-babel-result-cond result-params
+        results
+        (let ((tmp-file (org-babel-temp-file "q-")))
+          (with-temp-file tmp-file (insert results))
+          (org-babel-import-elisp-from-file tmp-file))))))
+#+END_SRC
+*** implementation
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-execute-code-block (body params)
+  (let ((type (intern (concat ":" (cdr (assq :type params)))))
+        (side (if (cdr (assq :side params))
+                (intern (concat ":" (cdr (assq :side params))))
+                :instance))
+        (code (encode-coding-string body 'latin-1)))
+    (case type
+      (:code (literate-smalltalk-eval code))
+      (:method
+          (literate-smalltalk-compile-method 
+           (cdr (assq :ns params))
+           (cdr (assq :class params))
+           side
+           (cdr (assq :cat params))
+           code))
+      (:class
+       (literate-smalltalk-compile-class
+        (cdr (assq :ns params))
+        side
+        code))
+      (t
+       (error "Unknown type %s" type)))))
+#+END_SRC
+
+* Test
+** eval codes
+:PROPERTIES:
+:results:  value
+:END:
+#+BEGIN_SRC st :type :code :results raw
+1+3.
+#+END_SRC
