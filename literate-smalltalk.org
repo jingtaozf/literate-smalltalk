@@ -58,8 +58,11 @@
   - [[#test][Test]]
     - [[#eval-codes][eval codes]]
 - [[#pharo-side][Pharo side]]
-  - [[#a-teapot-server-to-handle-request][a Teapot server to handle request]]
+  - [[#baseline][baseline]]
     - [[#definition][definition]]
+    - [[#spec][spec]]
+  - [[#a-teapot-server-to-handle-request][a Teapot server to handle request]]
+    - [[#definition-1][definition]]
     - [[#the-server-accessor][the Server accessor]]
     - [[#start-the-routes][start the routes]]
     - [[#get-namespaces-1][get namespaces]]
@@ -749,6 +752,29 @@ y at: 'page' put: '2'.
 :PROPERTIES:
 :literate-ns:    LiterateSmalltalk
 :END:
+** baseline
+*** definition
+#+BEGIN_SRC st :type class :name BaselineOfLiterateSmalltalk :ns BaselineOfLiterateSmalltalk
+BaselineOf subclass: #BaselineOfLiterateServer
+    instanceVariableNames: ''
+    classVariableNames: ''
+    package: 'BaselineOfLiterateSmalltalk'
+----------------------
+BaselineOfLiterateServer class
+    instanceVariableNames: ''
+#+END_SRC
+*** spec
+#+BEGIN_SRC st :type method :class BaselineOfLiterateServer :side instance :cat "baselines"
+baselineOf: spec
+	<baseline>
+	spec
+		for: #common
+		do: [
+			self setUpDependencies: spec.
+			spec package: 'LiterateSmalltalk' with: [ spec requires: #('Teapot') ].
+			spec group: 'default' with: #('LiterateSmalltalk')]
+#+END_SRC
+
 ** a Teapot server to handle request
 :PROPERTIES:
 :literate-lang: st
@@ -784,7 +810,8 @@ start
 	"Start the webserver"
 
 	| teapot |
-	Teapot stopAll. "reset everything"
+
+        " self server ifNotNil: [ setf server stop]."
 
 	"extra check so that we don't close a Pool which wasn't open"
 	"Started ifNotNil: [ Started ifTrue: [ Server  stop ] ]."
