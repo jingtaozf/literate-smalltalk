@@ -1,6 +1,6 @@
 # -*- encoding:utf-8 Mode: POLY-ORG; org-src-preserve-indentation: t; -*- ---
 #+TITLE:  Literate programming tool write smalltalk in org mode.
-#+SubTitle: based on shampoo.
+#+SubTitle: inspired by shampoo.
 #+OPTIONS: toc:2
 #+Startup: noindent
 #+PROPERTY: header-args :results silent
@@ -16,10 +16,9 @@
 - [[#preparation][Preparation]]
 - [[#how-to-do-it-01][How to do it?]]
 - [[#emacs-side][Emacs side]]
+  - [[#code-mode][code mode]]
   - [[#utilities][utilities]]
-    - [[#receive-response-from-pharo][receive response from pharo.]]
-    - [[#synchronous-call-to-shampoo][synchronous call to shampoo]]
-    - [[#update-shampoo-side][update shampoo side]]
+    - [[#valid-side][valid side]]
     - [[#forward-to-begin-of-function][forward to begin of function]]
     - [[#current-symbol-at-point][current symbol at point]]
     - [[#previous-symbol-at-point][previous symbol at point]]
@@ -35,6 +34,10 @@
     - [[#get-methods-of-one-category][get methods of one category]]
     - [[#get-method-source][get method source]]
     - [[#eval-code][eval code]]
+    - [[#prarse-a-regex][prarse a regex]]
+    - [[#how-to-parse-a-class-message][how to parse a class message]]
+    - [[#parse-class-definition][parse class definition]]
+    - [[#parse-subclass-definition][parse subclass definition]]
     - [[#compile-class][compile class]]
     - [[#compile-method][compile method]]
     - [[#format-code][format code]]
@@ -51,33 +54,32 @@
     - [[#optionally-define-a-file-extension-for-this-language][optionally define a file extension for this language]]
     - [[#optionally-declare-default-header-arguments][optionally declare default header arguments]]
     - [[#source-code-execution][Source Code Execution]]
+  - [[#shortcut][shortcut]]
   - [[#test][Test]]
     - [[#eval-codes][eval codes]]
 - [[#pharo-side][Pharo side]]
   - [[#a-teapot-server-to-handle-request][a Teapot server to handle request]]
     - [[#definition][definition]]
     - [[#the-server-accessor][the Server accessor]]
-    - [[#how-to-start-the-server][how to start the server]]
+    - [[#start-the-routes][start the routes]]
     - [[#get-namespaces-1][get namespaces]]
     - [[#get-classes-of-one-namespace-1][get classes of one namespace]]
     - [[#get-class-information][get class information]]
     - [[#get-class-categories][get class categories]]
     - [[#get-methods-in-one-class-category][get methods in one class category]]
     - [[#get-method-source-1][get method source]]
-    - [[#get-method-source-2][get method source]]
+    - [[#eval-code-1][eval code]]
+    - [[#compile-class-1][compile class]]
     - [[#compile-method-1][compile method]]
 
 * Introduction
 This is an attemp to write smalltalk codes in org mode,
-and interact with remote [[https://pharo.org/][pharo]] images based on [[https://github.com/dmatveev/shampoo-emacs][shampoo]].
+and interact with remote [[https://pharo.org/][pharo]] images inspired from [[https://github.com/dmatveev/shampoo-emacs][shampoo]]([[https://github.com/jingtaozf/shampoo-pharo.git][shampo for pharo]]).
 * Preparation
-You need to install [[https://github.com/jingtaozf/shampoo-pharo.git][shampo for pharo]] in pharo and start shampo server by the following codes
+You need to install pharo side codes in pharo and start server by the following codes
 #+begin_src st
-ShampooServer startOn: 9092 login: 'login' pass: '1234'.
+LiterateServer start.
 #+end_src
-Then you can install [[https://github.com/dmatveev/shampoo-emacs][shampoo for Emacs]] and connect to this server by command =shampoo-connect=,
-and argument =login@localhost:9092=, password =1234=.
-
 * How to do it? [0/1]
 We interact with pharo via shampoo, and hack shampoo to fetch/update codes in an org file.
 
@@ -85,58 +87,107 @@ We interact with pharo via shampoo, and hack shampoo to fetch/update codes in an
   https://github.com/pharo-open-documentation/pharo-wiki/blob/master/General/Extensions.md#define-an-extension-method-programmatically
 
 * Emacs side
+** code mode
+inspired from shampoo-code-mode
+#+BEGIN_SRC elisp
+(defconst literate-smalltalk-smalltalk-binsel "\\([-+*/~,<>=&?]\\{1,2\\}\\|:=\\|||\\)"
+  "Smalltalk binary selectors")
+
+(defconst literate-smalltalk-smalltalk-font-lock-keywords
+  (list
+   '("#[A-z][A-z0-9_]*"          . font-lock-constant-face)
+   '("\\<[A-z][A-z0-9_]*:"       . font-lock-function-name-face)
+   (cons literate-smalltalk-smalltalk-binsel 'font-lock-function-name-face)
+   '("\\$."                      . font-lock-string-face)
+   '("\\<[A-Z]\\sw*\\>"          . font-lock-type-face)
+   '("[0-9]+"                    . font-lock-constant-face))
+  "Basic Smalltalk keywords font-locking")
+
+(defconst literate-smalltalk-smalltalk-font-lock-keywords-1
+  literate-smalltalk-smalltalk-font-lock-keywords
+  "Level 1 Smalltalk font-locking keywords")
+
+(defconst literate-smalltalk-smalltalk-font-lock-keywords-2
+  (append literate-smalltalk-smalltalk-font-lock-keywords-1
+	  (list
+	   '("\\<\\(true\\|false\\|nil\\|self\\|super\\)\\>"
+	     . font-lock-builtin-face)
+	   '(":[a-z][A-z0-9_]*" . font-lock-variable-name-face)
+	   '(" |"               . font-lock-type-face)
+	   '("<.*>"             . font-lock-builtin-face)))
+  "Level 2 Smalltalk font-locking keywords")
+
+(defconst literate-smalltalk-smalltalk-font-lock-keywords-list
+  '((literate-smalltalk-smalltalk-font-lock-keywords
+     literate-smalltalk-smalltalk-font-lock-keywords-1
+     literate-smalltalk-smalltalk-font-lock-keywords-2)))
+
+(defvar literate-smalltalk-smalltalk-mode-syntax-table
+  (let ((table (make-syntax-table)))
+    ;; Make sure A-z0-9 are set to "w   " for completeness
+    (let ((c 0))
+      (setq c ?0)
+      (while (<= c ?9)
+	(setq c (1+ c))
+	(modify-syntax-entry c "w   " table))
+      (setq c ?A)
+      (while (<= c ?Z)
+	(setq c (1+ c))
+	(modify-syntax-entry c "w   " table))
+      (setq c ?a)
+      (while (<= c ?z)
+	(setq c (1+ c))
+	(modify-syntax-entry c "w   " table)))
+    (modify-syntax-entry 10  " >  " table) ; Comment (generic)
+    (modify-syntax-entry ?:  ".   " table) ; Symbol-char
+    (modify-syntax-entry ?_  "_   " table) ; Symbol-char
+    (modify-syntax-entry ?\" "!1  " table) ; Comment (generic)
+    (modify-syntax-entry ?'  "\"  " table) ; String
+    (modify-syntax-entry ?#  "'   " table) ; Symbol or Array constant
+    (modify-syntax-entry ?\( "()  " table) ; Grouping
+    (modify-syntax-entry ?\) ")(  " table) ; Grouping
+    (modify-syntax-entry ?\[ "(]  " table) ; Block-open
+    (modify-syntax-entry ?\] ")[  " table) ; Block-close
+    (modify-syntax-entry ?{  "(}  " table) ; Array-open
+    (modify-syntax-entry ?}  "){  " table) ; Array-close
+    (modify-syntax-entry ?$  "/   " table) ; Character literal
+    (modify-syntax-entry ?!  ".   " table) ; End message / Delimit defs
+    (modify-syntax-entry ?\; ".   " table) ; Cascade
+    (modify-syntax-entry ?|  ".   " table) ; Temporaries
+    (modify-syntax-entry ?^  ".   " table) ; Return
+    ;; Just to make sure these are not set to "w   "
+    (modify-syntax-entry ?<  ".   " table)
+    (modify-syntax-entry ?>  ".   " table)
+    (modify-syntax-entry ?+  ".   " table) ; math
+    (modify-syntax-entry ?-  ".   " table) ; math
+    (modify-syntax-entry ?*  ".   " table) ; math
+    (modify-syntax-entry ?/  ".2  " table) ; math
+    (modify-syntax-entry ?=  ".   " table) ; bool/assign
+    (modify-syntax-entry ?%  ".   " table) ; valid selector
+    (modify-syntax-entry ?&  ".   " table) ; boolean
+    (modify-syntax-entry ?\\ ".   " table) ; ???
+    (modify-syntax-entry ?~  ".   " table) ; misc. selector
+    (modify-syntax-entry ?@  ".   " table) ; Point
+    (modify-syntax-entry ?,  ".   " table) ; concat
+    table)
+  "Syntax table used by Smalltalk mode")
+
+(define-derived-mode literate-smalltalk-code-mode
+    text-mode "Literate Smalltalk code"
+    (set (make-local-variable 'font-lock-defaults)
+         literate-smalltalk-smalltalk-font-lock-keywords-list)
+    (set-syntax-table literate-smalltalk-smalltalk-mode-syntax-table))
+
+(setq auto-mode-alist (append '(("\\.st\\'" . literate-smalltalk-code-mode)) auto-mode-alist))
+#+END_SRC
+
 ** utilities
-*** receive response from pharo.
-We use an advice function to hood the response sent to pharo.
-
-To simplify our process, we will disable old shampoo response handler under our invocation.
-#+BEGIN_SRC elisp
-(defvar literate-smalltalk-shampoo-p t)
-#+END_SRC
-We will set this variable to =nil= before sending our message and reset it to =t= after getting response.
-The default value of it is =t= so our invocation will not affect original shampoo operations.
-
-We use a special variable to hold our response result.
-#+BEGIN_SRC elisp
-(defvar literate-smalltalk-current-response nil)
-(defvar literate-smalltalk-last-response nil)
-#+END_SRC
-
-#+BEGIN_SRC elisp
-(defun literate-smalltalk-shampoo-handle-response (old-function resp)
-  (if literate-smalltalk-shampoo-p
-    (funcall old-function resp)
-    (setf literate-smalltalk-current-response resp)))
-
-(eval-after-load "shampoo"
-  '(advice-add 'shampoo-handle-response :around #'literate-smalltalk-shampoo-handle-response))
-#+END_SRC
-*** synchronous call to shampoo
-#+BEGIN_SRC elisp
-(defun literate-smalltalk-shampoo-call (message)
-  (setf literate-smalltalk-current-response nil
-        literate-smalltalk-shampoo-p nil)
-  (with-~shampoo~
-      (shampoo-send-message
-       message))
-  (cl-loop for i from 0 to 100
-           if literate-smalltalk-current-response
-           do (return)
-           else do (sit-for 0.1))
-  (unless literate-smalltalk-current-response
-    (error "Failed to get response from shampoo."))
-  (setf literate-smalltalk-last-response literate-smalltalk-current-response
-        literate-smalltalk-current-response nil
-        literate-smalltalk-shampoo-p t)
-  literate-smalltalk-last-response)
-#+END_SRC
-*** update shampoo side
+*** valid side
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-valid-sides '(:class :instance))
-(defun literate-smalltalk-update-side (side)
-  (assert (find side literate-smalltalk-valid-sides))
-  (with-~shampoo~
-      (setf (shampoo-current-side ~shampoo~) side)))
+(defun literate-smalltalk-side-sym-as-param (sym)
+  (cdr (assoc sym '((:instance . "instance")
+                    (:class    . "class")))))
 #+END_SRC
 *** forward to begin of function
 #+BEGIN_SRC elisp
@@ -157,7 +208,7 @@ We use a special variable to hold our response result.
   (setf beginning-of-defun-function 'literate-smalltalk-beginning-of-defun-function)
   (setf end-of-defun-function 'literate-smalltalk-end-of-defun-function)
   )
-(add-hook 'shampoo-code-mode-hook 'install-literate-smalltalk-beginning-of-defun-function)
+(add-hook 'literate-smalltalk-code-mode-hook 'install-literate-smalltalk-beginning-of-defun-function)
 #+END_SRC
 *** current symbol at point
 #+BEGIN_SRC elisp
@@ -212,7 +263,8 @@ We use a special variable to hold our response result.
 *** get classes of one namespace
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-classes (namespace)
-  (cdr (assoc 'classes (literate-smalltalk-request (concat "classes/" namespace)))))
+  (mapcar 'identity
+          (cdr (assoc 'classes (literate-smalltalk-request (concat "classes/" namespace))))))
 
 (defun literate-smalltalk-select-a-class (namespace)
   (helm-select-list "Please select a namespace: " (literate-smalltalk-classes namespace)))
@@ -264,7 +316,8 @@ It is slow to build such indexed from remote pharo, let store it to a global var
 (defconst literate-smalltalk-class-template
   '(("instanceVariableNames:" . instvars)
     ("classVariableNames:"    . classvars)
-    ("poolDictionaries:"      . poolvars)))
+    ;; ("poolDictionaries:"      . poolvars)
+    ))
 
 (defconst literate-smalltalk-class-side-template
   '(("instanceVariableNames:" . instvars)))
@@ -285,9 +338,8 @@ It is slow to build such indexed from remote pharo, let store it to a global var
           (insert (format "    %s '%s'"  (car each) text))
           (newline)))
       (insert (format
-               "    category: '%s'"
-               ;; TODO:
-               ""))
+               "    package: '%s'"
+               (cdr (assoc 'package instance))))
       (newline)
       (insert literate-smalltalk-separator)
       (newline)
@@ -309,7 +361,7 @@ It is slow to build such indexed from remote pharo, let store it to a global var
 
 *** get categories of one class
 #+BEGIN_SRC elisp
-(defun literate-smalltalk-categories (namespace class side)
+(defun literate-smalltalk-categories (class)
   (literate-smalltalk-request (concat "cats/" class)))
 
 ;; (defun literate-smalltalk-select-a-category (namespace class)
@@ -318,10 +370,11 @@ It is slow to build such indexed from remote pharo, let store it to a global var
 *** get methods of one category
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-category-methods (class category side)
-  (cdr (assoc 'methods (literate-smalltalk-request "cat/methods"
-                                                   :params `(("class" . ,class)
-                                                             ("cat" . ,category)
-                                                             ("side" . ,side))))))
+  (mapcar 'identity
+          (cdr (assoc 'methods (literate-smalltalk-request "cat/methods"
+                                                           :params `(("class" . ,class)
+                                                                     ("cat" . ,category)
+                                                                     ("side" . ,side)))))))
 #+END_SRC
 *** get method source
 #+BEGIN_SRC elisp
@@ -344,53 +397,122 @@ It is slow to build such indexed from remote pharo, let store it to a global var
       (cdr (assoc 'result resp))
       (error "Failed to eval code!"))))
 #+END_SRC
+*** prarse a regex
+#+BEGIN_SRC elisp
+(defvar literate-smalltalk-regexp-tokens
+    '((:Wd "\\([A-z]+[0-9]*\\)")
+      (:Ws "\\([A-z 0-9]*\\)")
+      (:Wa "\\([A-z\\.0-9]*\\)")
+      (:Wc "\\([A-z\-0-9]*\\)")
+      (:D  "\\([0-9]*\\)")
+      (:sp "[\s\t\n]*")
+      (:cr "\r")
+      (:lf "\n")))
+
+(defun literate-smalltalk-regexp-is-capture-token (sym)
+  (let ((pattern (assoc sym literate-smalltalk-regexp-tokens)))
+    (and (symbolp sym)
+         pattern
+         (string-match "^\\\\\(.*\\\\\)$" (cadr pattern)))))
+
+(defun literate-smalltalk-regexp-parse (str pattern)
+  (let ((regexp (reduce 'concat
+                        (loop for each in pattern collect
+                                                  (let ((re (assoc each literate-smalltalk-regexp-tokens)))
+                                                    (if re (cadr re) each)))))
+        (re-len (loop for each in pattern
+                      sum (if (literate-smalltalk-regexp-is-capture-token each) 1 0))))
+    (with-temp-buffer
+      (insert str)
+      (goto-char (point-min))
+      (when (re-search-forward regexp nil t)
+        (loop for i from 1 to re-len collect
+              (match-string i))))))
+
+(defun literate-smalltalk-regexp-parse-and-bind (str pattern bindings binder)
+  (let ((parsed (literate-smalltalk-regexp-parse str pattern)))
+    (when parsed
+      (loop for binding in bindings for j from 0 do
+        (funcall
+          binder
+          binding
+          (nth j parsed)))
+      t)))
+#+END_SRC
+
+*** how to parse a class message
+#+BEGIN_SRC elisp
+(cl-defun literate-smalltalk-parse-message (&key code pattern bindings to-split)
+  (lexical-let ((data '()))
+    (let* ((binder #'(lambda (key value)
+                       (push (cons key value) data)))
+           (%split-string #'(lambda (string)
+                              (if (null string)
+                                '()
+                                (remove-if (lambda (x) (equal x "")) (split-string string "\s"))))))
+      (if (literate-smalltalk-regexp-parse-and-bind code pattern bindings binder)
+        (progn
+          (dolist (k to-split)
+            (let ((string (cdr (assoc k data))))
+              (setf (cdr (assoc k data))
+                      (if (null string) '()
+                        (remove-if (lambda (x) (equal x "")) (funcall %split-string string))))))
+          data)
+        (progn (message "literate smalltalk: syntax error")
+               nil)))))
+#+END_SRC
+
+*** parse class definition
+#+BEGIN_SRC elisp
+(defvar literate-smalltalk-class-side-pattern
+    '(:Wd :sp "class" :sp "instanceVariableNames:" :sp "'" :Ws "'"))
+(defun literate-smalltalk-parse-class-definition (code)
+  (literate-smalltalk-parse-message
+   :code code
+   :pattern literate-smalltalk-class-side-pattern
+   :bindings '(:name :instvars)
+   :to-split '(:instvars)))
+#+END_SRC
+*** parse subclass definition
+#+BEGIN_SRC elisp
+(defvar literate-smalltalk-subclass-pattern
+    '(:Wa :sp "subclass:" :sp "#" :Wd
+      :sp "instanceVariableNames:" :sp "'" :Ws "'"
+      :sp "classVariableNames:"    :sp "'" :Ws "'"
+      ;; :sp "poolDictionaries:"      :sp "'" :Ws "'"
+      :sp "package:"              :sp "'" :Wd "'"
+      ))
+(defun literate-smalltalk-parse-subclass-definition (code)
+  (literate-smalltalk-parse-message
+   :code code
+   :pattern literate-smalltalk-subclass-pattern
+   :bindings '(:super :name :instvars :classvars :package)
+   :to-split '(:instvars :classvars)))
+#+END_SRC
+
 *** compile class
 #+BEGIN_SRC elisp
-(defun literate-smalltalk-compile-class (ns side code)
-  (with-~shampoo~
-      (setf (shampoo-current-side ~shampoo~) side))
-  (let ((class-data (if (equal :class side)
-                      (shampoo-parse-class-side-message code)
-                      (shampoo-parse-subclassing-message code))))
-    (case side
-      (:instance
-       (multiple-value-bind (superspace superclass)
-           (let ((info
-                  (with-~shampoo~
-                      (shampoo-dialect-extract-parent
-                       (shampoo-current-smalltalk ~shampoo~)
-                       (shampoo-dict-get :super class-data)))))
-             (multiple-value-bind (superspace superclass) info
-               (values (if (null superspace)
-                         ns
-                         superspace)
-                       superclass)))
-         (shampoo-dict-put
-          :key   :super
-          :value superclass
-          :into  class-data)
-         (let ((resp (literate-smalltalk-shampoo-call
-                      (shampoo-make-compile-instance-rq
-                       :id (shampoo-give-id)
-                       :ss superspace
-                       :side (shampoo-side)
-                       :ns ns
-                       :cat (shampoo-dict-get :category class-data)
-                       :desc class-data))))
-           (if (shampoo-response-is-success resp)
-             (message "Compile class done.")
-             (message "Compile class failed.")))))
-      (:class
-       (let ((resp (literate-smalltalk-shampoo-call
-                    (shampoo-make-compile-class-rq
-                     :id (shampoo-give-id)
-                     :ss "Smalltalk"
-                     :side (shampoo-side)
-                     :ns ns
-                     :desc class-data))))
-         (if (shampoo-response-is-success resp)
-           (message "Compile class done.")
-           (message "Compile class failed.")))))))
+(defun literate-smalltalk-compile-class (code)
+  (let* ((code-parts
+           (with-temp-buffer
+             (insert code)
+             (goto-char (point-min))
+             (search-forward literate-smalltalk-separator)
+             (let ((subclass-end-pos (line-beginning-position))
+                   (class-start-pos (line-end-position)))
+               (cons (buffer-substring-no-properties (point-min) subclass-end-pos)
+                     (buffer-substring-no-properties class-start-pos (point-max))))))
+         (instance-data (literate-smalltalk-parse-subclass-definition (first code-parts)))
+         (class-data (literate-smalltalk-parse-class-definition (cdr code-parts))))
+    (unless (and instance-data class-data)
+      (error "Failed to get class information."))
+    ;; (message "instance-data:'%s', class-data: '%s'" instance-data class-data)
+    (let ((resp (literate-smalltalk-request
+                 "compile/class"
+                 :params `(("instance" . ,(json-encode instance-data))
+                           ("class" . ,(json-encode class-data)))
+                 :type "POST")))
+      (message "Compile class %s." (cdr (assoc 'status resp))))))
 #+END_SRC
 *** compile method
 #+BEGIN_SRC elisp
@@ -399,7 +521,7 @@ It is slow to build such indexed from remote pharo, let store it to a global var
                "compile/method"
                :params `(("class" . ,class)
                        ("source" . ,code)
-                       ("side" . ,(shampoo-side-sym-as-param side)))
+                       ("side" . ,(literate-smalltalk-side-sym-as-param side)))
                :type "POST")))
     (message "Compile method %s." (cdr (assoc 'result resp)))
     ))
@@ -418,20 +540,20 @@ It is slow to build such indexed from remote pharo, let store it to a global var
                (save-excursion
                  (goto-char (point-min))
                  (when (re-search-forward pattern nil t)
-                   (forward-line)
                    (goto-char (line-beginning-position))
+                   (org-ensure-point-visible)
                    (return (list (current-buffer) (point)))))))))
 #+END_SRC
 
 *** find definition of class in org files
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-find-class-definition (class-name)
-  (literate-smalltalk-search-pattern (format ":type class :name %s " class-name)))
+  (literate-smalltalk-search-pattern (format "subclass: #%s" class-name)))
 #+END_SRC
 *** find definition of a class method in org files
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-find-method-definition (class-name method-name)
-  (literate-smalltalk-search-pattern (format ":type method :name %s.*? :class %s" method-name class-name)))
+  (literate-smalltalk-search-pattern (format ":type method :class %s.*\n%s" class-name method-name)))
 #+END_SRC
 
 ** Fetch all source of a package to an org section.
@@ -446,17 +568,17 @@ It is slow to build such indexed from remote pharo, let store it to a global var
              (loop for class in (literate-smalltalk-classes namespace)
                    do (insert "** CLASS " class "\n")
                       (insert "*** CLASS DEFINITION \n")
-                      (insert "#+BEGIN_SRC st :type class :name " class
-                              " :ns " namespace "\n")
+                      (insert "#+BEGIN_SRC st :type class \n")
                       (insert (literate-smalltalk-class class))
                       (insert "\n#+END_SRC\n")
                       (loop for side in literate-smalltalk-valid-sides
-                            for side-name = (shampoo-side-sym-as-param side)
+                            for side-name = (literate-smalltalk-side-sym-as-param side)
                             for categories-dict = (literate-smalltalk-categories class)
                             do (loop for side in literate-smalltalk-valid-sides
                                      for side-symbol = (intern (subseq (symbol-name side) 1))
-                                     do (loop for category in (cdr (assoc side-symbol categories-dict))
-                                              for normalized-category = (replace-regexp-in-string " " "@" category)
+                                     do (loop for category across (cdr (assoc side-symbol categories-dict))
+                                              for normalized-category = (replace-regexp-in-string
+                                                                                " " "@" category)
                                               do (loop for method in (literate-smalltalk-category-methods
                                                                               class category side)
                                                        do (insert "*** METHOD "
@@ -464,14 +586,14 @@ It is slow to build such indexed from remote pharo, let store it to a global var
                                                                          (symbol-name side)
                                                                   ":" normalized-category ":" "\n")
                                                           (insert "#+BEGIN_SRC st :type method"
-                                                                  " :name " method
                                                                   " :class " class
                                                                   " :side " side-name
                                                                   " :cat \"" category "\""
-                                                                  " :ns " namespace "\n")
+                                                                  "\n")
                                                           (insert (literate-smalltalk-method-source
                                                                            class method side))
-                                                          (insert "\n#+END_SRC\n"))))))
+                                                          (insert "\n#+END_SRC\n")
+                                                          (sit-for 0))))))
              (message "namedspace '%s' has been added." namespace))))
 #+END_SRC
 ** update codes
@@ -518,7 +640,7 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
 (defun install-literate-smalltalk-xref-backend ()
   (make-local-variable 'xref-backend-functions)
   (setf xref-backend-functions '(literate-smalltalk-xref-backend)))
-(add-hook 'shampoo-code-mode-hook 'install-literate-smalltalk-xref-backend)
+(add-hook 'literate-smalltalk-code-mode-hook 'install-literate-smalltalk-xref-backend)
 #+END_SRC
 *** xref interfaces
 #+BEGIN_SRC elisp
@@ -597,12 +719,18 @@ Argument PARAMS: the input parameters."
            (cdr (assq :cat params))
            code))
       (:class
-       (literate-smalltalk-compile-class
-        (cdr (assq :ns params))
-        side
-        code))
+       (literate-smalltalk-compile-class code))
       (t
        (error "Unknown type %s" type)))))
+#+END_SRC
+
+** shortcut
+#+BEGIN_SRC elisp
+(define-quick-choice (literate-smalltalk-code-mode)
+    ("package of class" literate-smalltalk-namespace-of-current-symbol)
+  ("compile codes" literate-smalltalk-namespace-of-current-symbol)
+  ("update codes" literate-smalltalk-namespace-of-current-symbol)
+  )
 #+END_SRC
 
 ** Test
@@ -632,8 +760,7 @@ y at: 'page' put: '2'.
 Object subclass: #LiterateServer
     instanceVariableNames: ''
     classVariableNames: 'Server Started'
-    poolDictionaries: ''
-    category: ''
+    package: 'LiterateSmalltalk'
 ----------------------
 LiterateServer class
     instanceVariableNames: ''
@@ -651,7 +778,7 @@ server: server
 	"sets teapot for class"
 	Server := server.
 #+END_SRC
-*** how to start the server
+*** start the routes
 #+BEGIN_SRC st :type method :name start :class LiterateServer :side class :cat "management" :ns LiterateSmalltalk
 start
 	"Start the webserver"
@@ -683,6 +810,10 @@ start
 		       side: (req at: #side)
 	    ];
 	   POST: '/eval' -> [:req | self evalCode: (req at: #code)];
+	   POST: '/compile/class' -> [:req |
+		self compileClass: (NeoJSONReader fromString: (req at: #instance))
+		     class: (NeoJSONReader fromString: (req at: #class))
+	    ];
 	   POST: '/compile/method' -> [:req |
 		    self compileMethod: (req at: #class)
 				source: (req at: #source)
@@ -719,6 +850,7 @@ classDef: className
 	instanceSide at: #instvars put: (class instVarNames asStringArray).
 	instanceSide at: #classvars put: (class classVarNames asStringArray).
 	instanceSide at: #poolvars put: (class sharedPools asStringArray).
+	instanceSide at: #package put: (class category).
 
 	class := class class.
 	classSide := Dictionary new.
@@ -751,7 +883,6 @@ classCats: className
     result at: #class put: cats.
     ^ result
 #+END_SRC
-
 *** get methods in one class category
 #+BEGIN_SRC st :type method :name catMethods: :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 catMethods: className category: cat side: side
@@ -766,7 +897,6 @@ catMethods: className category: cat side: side
                 ifFalse: [allMethods select: [:e | e value category = cat]]).
 	   ^ { #methods -> (methods collect: [:each | each key asString]) asSortedCollection } asDictionary
 #+END_SRC
-
 *** get method source
 #+BEGIN_SRC st :type method :name methodSource: :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 methodSource: className name: name side: side
@@ -776,7 +906,7 @@ methodSource: className name: name side: side
 	method := class methodDictionary at: name asSymbol.
 	^ {#source -> method sourceCode} asDictionary
 #+END_SRC
-*** get method source
+*** eval code
 #+BEGIN_SRC st :type method :name methodSource: :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 evalCode: code
     | status result |
@@ -784,8 +914,36 @@ evalCode: code
     result := [OpalCompiler new source: code; evaluate] onErrorDo:  [ result := #failed ].
     ^ {#result -> result. #status -> status} asDictionary
 #+END_SRC
+*** compile class
+#+BEGIN_SRC st :type method :name compileMethod :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
+compileClass: instDef class: classDef
+    | parent class status instvars classvars |
 
+    status := #success.
+    instvars := ''.
+    (instDef at: #instvars) ifNotNil: [ instvars := (instDef at: #instvars) elementsString ].
 
+    classvars := ''.
+    (instDef at: #classvars) ifNotNil: [ classvars := (instDef at: #classvars) elementsString ].
+
+    "Looks a bit kludgy, but currently I dont know how to make it better. TODO: refactor"
+    parent := Smalltalk at: ((instDef at: #super) asSymbol).
+    [ class := parent
+		    subclass: (instDef at: #name) asSymbol
+		    instanceVariableNames: instvars
+		    classVariableNames: classvars
+		    poolDictionaries: ''
+		    category: (instDef at: #package)
+    ] on: Error do: [:e | Transcript show: e printString; cr. status := #failed ].
+
+    class := Smalltalk at: (instDef at: #name) asSymbol ifAbsent: [nil].
+    "On Pharo, there were a strange exception when using the safe form."
+    instvars := ''.
+    (classDef at: #instvars) ifNotNil: [ instvars := (classDef at: #instvars) elementsString ].
+    class class instanceVariableNames: instvars.
+
+    ^ {#status -> status} asDictionary.
+#+END_SRC
 *** compile method
 #+BEGIN_SRC st :type method :name compileMethod :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 compileMethod: className source: source side: side
