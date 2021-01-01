@@ -577,28 +577,27 @@ It is slow to build such indexed from remote pharo, let store it to a global var
                       (insert (literate-smalltalk-class class))
                       (insert "\n#+END_SRC\n")
                       (loop for side in literate-smalltalk-valid-sides
+                            for side-symbol = (intern (subseq (symbol-name side) 1))
                             for side-name = (literate-smalltalk-side-sym-as-param side)
                             for categories-dict = (literate-smalltalk-categories class)
-                            do (loop for side in literate-smalltalk-valid-sides
-                                     for side-symbol = (intern (subseq (symbol-name side) 1))
-                                     do (loop for category across (cdr (assoc side-symbol categories-dict))
-                                              for normalized-category = (replace-regexp-in-string
-                                                                                " " "@" category)
-                                              do (loop for method in (literate-smalltalk-category-methods
-                                                                              class category side)
-                                                       do (insert "*** METHOD "
-                                                                  method "                                            "
-                                                                         (symbol-name side)
-                                                                  ":" normalized-category ":" "\n")
-                                                          (insert "#+BEGIN_SRC st :type method"
-                                                                  " :class " class
-                                                                  " :side " side-name
-                                                                  " :cat \"" category "\""
-                                                                  "\n")
-                                                          (insert (literate-smalltalk-method-source
-                                                                           class method side))
-                                                          (insert "\n#+END_SRC\n")
-                                                          (sit-for 0))))))
+                            do (loop for category across (cdr (assoc side-symbol categories-dict))
+                                     for normalized-category = (replace-regexp-in-string
+                                                                       " " "@" category)
+                                     do (loop for method in (literate-smalltalk-category-methods
+                                                                     class category side)
+                                              do (insert "*** METHOD "
+                                                         method "                                            "
+                                                                (symbol-name side)
+                                                         ":" normalized-category ":" "\n")
+                                                 (insert "#+BEGIN_SRC st :type method"
+                                                         " :class " class
+                                                         " :side " side-name
+                                                         " :cat \"" category "\""
+                                                         "\n")
+                                                 (insert (literate-smalltalk-method-source
+                                                                  class method side))
+                                                 (insert "\n#+END_SRC\n")
+                                                 (sit-for 0)))))
              (message "namedspace '%s' has been added." namespace))))
 #+END_SRC
 ** update codes
