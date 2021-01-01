@@ -8,13 +8,13 @@ Class {
 	#category : #LiterateSmalltalk
 }
 
-{ #category : #'as yet unclassified' }
+{ #category : #utilities }
 LiterateServer class >> asStringArray: items [
 
 	^ (items collect: [ :each | each asString ]) asArray
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #accessing }
 LiterateServer class >> catMethods: className category: cat side: side [
 
 	| class methods allMethods result |
@@ -27,7 +27,7 @@ LiterateServer class >> catMethods: className category: cat side: side [
 
 	methods := cat = '*'
 		           ifTrue: [ allMethods ]
-		           ifFalse: [ 
+		           ifFalse: [
 		           allMethods select: [ :e | e value category = cat ] ].
 	^ { (#methods
 	   ->
@@ -35,27 +35,27 @@ LiterateServer class >> catMethods: className category: cat side: side [
 		   asSortedCollection) } asDictionary
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #accessing }
 LiterateServer class >> classCats: className [
 
 	| class cats instanceSide classSide |
 	result := Dictionary new.
 	class := Smalltalk at: className asSymbol.
 	cats := Set new.
-	class methodDictionary ifNotNil: [ :d | 
+	class methodDictionary ifNotNil: [ :d |
 		d values do: [ :each | cats add: each category ] ].
 
 	result at: #instance put: cats.
 
 	class := class class.
 	cats := Set new.
-	class methodDictionary ifNotNil: [ :d | 
+	class methodDictionary ifNotNil: [ :d |
 		d values do: [ :each | cats add: each category ] ].
 	result at: #class put: cats.
 	^ result
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #accessing }
 LiterateServer class >> classDef: className [
 
 	| class instanceSide classSide result |
@@ -89,32 +89,32 @@ LiterateServer class >> classDef: className [
 	^ result
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #accessing }
 LiterateServer class >> classes: namespace [
 
 	| resultList |
-	resultList := Smalltalk allClasses select: [ :each | 
+	resultList := Smalltalk allClasses select: [ :each |
 		              each category asString = namespace ].
 	^ { (#classes -> (resultList collect: [ :each | each name asString ])) }
 		  asDictionary
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #compile }
 LiterateServer class >> compileClass: instDef class: classDef [
 
 	| parent class status instvars classvars |
 	status := #success.
 	instvars := ''.
-	(instDef at: #instvars) ifNotNil: [ 
+	(instDef at: #instvars) ifNotNil: [
 		instvars := self elementsString: (instDef at: #instvars) ].
 
 	classvars := ''.
-	(instDef at: #classvars) ifNotNil: [ 
+	(instDef at: #classvars) ifNotNil: [
 		classvars := self elementsString: (instDef at: #classvars) ].
 
 	"Looks a bit kludgy, but currently I dont know how to make it better. TODO: refactor"
 	parent := Smalltalk at: (instDef at: #super) asSymbol.
-	[ 
+	[
 	class := parent
 		         subclass: (instDef at: #name) asSymbol
 		         instanceVariableNames: instvars
@@ -122,7 +122,7 @@ LiterateServer class >> compileClass: instDef class: classDef [
 		         poolDictionaries: ''
 		         category: (instDef at: #package) ]
 		on: Error
-		do: [ :e | 
+		do: [ :e |
 			Transcript
 				show: e printString;
 				cr.
@@ -131,46 +131,46 @@ LiterateServer class >> compileClass: instDef class: classDef [
 	class := Smalltalk at: (instDef at: #name) asSymbol ifAbsent: [ nil ].
 	"On Pharo, there were a strange exception when using the safe form."
 	instvars := ''.
-	(classDef at: #instvars) ifNotNil: [ 
+	(classDef at: #instvars) ifNotNil: [
 		instvars := self elementsString: (classDef at: #instvars) ].
 	class class instanceVariableNames: instvars.
 
 	^ { (#status -> status) } asDictionary
 ]
 
-{ #category : #compiling }
-LiterateServer class >> compileMethod: className source: source side: side [
+{ #category : #compile }
+LiterateServer class >> compileMethod: className category: cat source: source side: side [
 
 	| class result |
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
 	result := #success.
-	[ class compile: source ] onErrorDo: [ result := #failed ].
+	[ class compile: source classified: cat ] onErrorDo: [ result := #failed ].
 	^ { (#result -> result) } asDictionary
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #utilities }
 LiterateServer class >> elementsString: str [
 
 	^ String join: str separatedBy: ' '
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #compile }
 LiterateServer class >> evalCode: code [
 
 	| status result |
 	status := #success.
-	result := [ 
+	result := [
 	          OpalCompiler new
 		          source: code;
 		          evaluate ] onErrorDo: [ result := #failed ].
-	^ { 
+	^ {
 		  (#result -> result).
 		  (#status -> status) } asDictionary
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #compile }
 LiterateServer class >> formatCode: source [
 
 	| tree |
@@ -183,7 +183,7 @@ LiterateServer class >> formatCode: source [
 		  (#source -> tree formattedCode) } asDictionary
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #accessing }
 LiterateServer class >> methodSource: className name: name side: side [
 
 	| class method |
@@ -193,11 +193,11 @@ LiterateServer class >> methodSource: className name: name side: side [
 	^ { (#source -> method sourceCode) } asDictionary
 ]
 
-{ #category : #'as yet unclassified' }
+{ #category : #accessing }
 LiterateServer class >> namespaces [
 
 	| names |
-	names := (Smalltalk allClasses collect: [ :each | 
+	names := (Smalltalk allClasses collect: [ :each |
 		          each category asString ]) asSet asSortedCollection.
 	^ { (#namespaces -> names) } asDictionary
 ]
@@ -206,17 +206,15 @@ LiterateServer class >> namespaces [
 LiterateServer class >> server [
 	"returns teapot instance"
 	^ Server
-
 ]
 
 { #category : #accessing }
 LiterateServer class >> server: server [
 	"sets teapot for class"
 	Server := server.
-
 ]
 
-{ #category : #accessing }
+{ #category : #management }
 LiterateServer class >> start [
 
 	"Start the webserver"
@@ -224,7 +222,7 @@ LiterateServer class >> start [
 	| teapot |
 	"extra check so that we don't close a Pool which wasn't open"
 	Started ifNotNil: [ Server stop ].
-	teapot := Teapot configure: { 
+	teapot := Teapot configure: {
 			          (#defaultOutput -> #json).
 			          (#port -> 9092).
 			          (#debugMode -> true).
@@ -236,24 +234,25 @@ LiterateServer class >> start [
 			-> [ :req | self classes: (req at: #namespace) ];
 		GET: '/class/<class>' -> [ :req | self classDef: (req at: #class) ];
 		GET: '/cats/<class>' -> [ :req | self classCats: (req at: #class) ];
-		GET: '/cat/methods' -> [ :req | 
+		GET: '/cat/methods' -> [ :req |
 				self
 					catMethods: (req at: #class)
 					category: (req at: #cat)
 					side: (req at: #side) ];
-		GET: '/method/source' -> [ :req | 
+		GET: '/method/source' -> [ :req |
 				self
 					methodSource: (req at: #class)
 					name: (req at: #name)
 					side: (req at: #side) ];
 		POST: '/eval' -> [ :req | self evalCode: (req at: #code) ];
-		POST: '/compile/class' -> [ :req | 
+		POST: '/compile/class' -> [ :req |
 				self
 					compileClass: (NeoJSONReader fromString: (req at: #instance))
 					class: (NeoJSONReader fromString: (req at: #class)) ];
-		POST: '/compile/method' -> [ :req | 
+		POST: '/compile/method' -> [ :req |
 				self
 					compileMethod: (req at: #class)
+					category: (req at: #category)
 					source: (req at: #source)
 					side: (req at: #side) ];
 		POST:
