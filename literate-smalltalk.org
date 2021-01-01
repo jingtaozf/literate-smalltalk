@@ -912,9 +912,9 @@ asStringArray: items
 #+END_SRC
 *** elementsString
 #+BEGIN_SRC st :type method :class LiterateServer :side class :cat "utilities" :ns LiterateSmalltalk
-elementsString: str
+elementsString: items
 
-	^ String join: str separatedBy: ' '
+	^ items inject: '' into: [ :acc :each | acc , each asString , ' ' ]
 #+END_SRC
 *** get namespaces
 #+BEGIN_SRC st :type method :name namespaces :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
