@@ -9,6 +9,11 @@ Class {
 }
 
 { #category : #'as yet unclassified' }
+LiterateServer class >> asStringArray: items [
+    ^(items collect: [:each | each asString]) asArray
+]
+
+{ #category : #'as yet unclassified' }
 LiterateServer class >> catMethods: className category: cat side: side [
             | class methods allMethods result |
             class := Smalltalk at: className asSymbol.
@@ -48,18 +53,18 @@ LiterateServer class >> classDef: className [
 	instanceSide := Dictionary new.
 	instanceSide at: #class put: className.
 	instanceSide at: #superclass put: (class superclass printString).
-	instanceSide at: #instvars put: (class instVarNames asStringArray).
-	instanceSide at: #classvars put: (class classVarNames asStringArray).
-	instanceSide at: #poolvars put: (class sharedPools asStringArray).
+	instanceSide at: #instvars put: (self asStringArray: (class instVarNames)).
+	instanceSide at: #classvars put: (self asStringArray: (class classVarNames)).
+	instanceSide at: #poolvars put: (self asStringArray: (class sharedPools)).
 	instanceSide at: #package put: (class category).
 
 	class := class class.
 	classSide := Dictionary new.
 	classSide at: #class put: className.
 	classSide at: #superclass put: (class superclass printString).
-	classSide at: #instvars put: (class instVarNames asStringArray).
-	classSide at: #classvars put: (class classVarNames asStringArray).
-	classSide at: #poolvars put: (class sharedPools asStringArray).
+	classSide at: #instvars put: (self asStringArray: (class instVarNames)).
+	classSide at: #classvars put: (self asStringArray: (class classVarNames)).
+	classSide at: #poolvars put: (self asStringArray: (class sharedPools)).
         result := Dictionary new.
 	result at: #instance put: instanceSide.
 	result at: #class put: classSide.
@@ -79,10 +84,10 @@ LiterateServer class >> compileClass: instDef class: classDef [
 
     status := #success.
     instvars := ''.
-    (instDef at: #instvars) ifNotNil: [ instvars := (instDef at: #instvars) elementsString ].
+    (instDef at: #instvars) ifNotNil: [ instvars := (self elementsString: (instDef at: #instvars)) ].
 
     classvars := ''.
-    (instDef at: #classvars) ifNotNil: [ classvars := (instDef at: #classvars) elementsString ].
+    (instDef at: #classvars) ifNotNil: [ classvars := (self elementsString: (instDef at: #classvars)) ].
 
     "Looks a bit kludgy, but currently I dont know how to make it better. TODO: refactor"
     parent := Smalltalk at: ((instDef at: #super) asSymbol).
@@ -97,7 +102,7 @@ LiterateServer class >> compileClass: instDef class: classDef [
     class := Smalltalk at: (instDef at: #name) asSymbol ifAbsent: [nil].
     "On Pharo, there were a strange exception when using the safe form."
     instvars := ''.
-    (classDef at: #instvars) ifNotNil: [ instvars := (classDef at: #instvars) elementsString ].
+    (classDef at: #instvars) ifNotNil: [ instvars := (self elementsString: (classDef at: #instvars)) ].
     class class instanceVariableNames: instvars.
 
     ^ {#status -> status} asDictionary.
@@ -112,6 +117,11 @@ LiterateServer class >> compileMethod: className source: source side: side [
 	result := #success.
 	[class compile: source] onErrorDo: [ result := #failed ].
 	^ {#result -> result} asDictionary
+]
+
+{ #category : #'as yet unclassified' }
+LiterateServer class >> elementsString: str [
+    ^String join: str separatedBy: ' '
 ]
 
 { #category : #'as yet unclassified' }
