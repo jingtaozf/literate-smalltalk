@@ -4,11 +4,11 @@ Class {
 	#category : #BaselineOfLiterateSmalltalk
 }
 
-{ #category : #'as yet unclassified' }
+{ #category : #baselines }
 BaselineOfLiterateServer >> baselineOf: spec [
 
 	<baseline>
-	spec for: #common do: [ 
+	spec for: #common do: [
 		self setUpDependencies: spec.
 		spec
 			package: 'LiterateSmalltalk'

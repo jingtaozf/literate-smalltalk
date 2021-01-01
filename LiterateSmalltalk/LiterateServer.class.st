@@ -151,9 +151,9 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 ]
 
 { #category : #utilities }
-LiterateServer class >> elementsString: str [
+LiterateServer class >> elementsString: items [
 
-	^ String join: str separatedBy: ' '
+	^ items inject: '' into: [ :acc :each | acc , each asString , ' ' ]
 ]
 
 { #category : #compile }
