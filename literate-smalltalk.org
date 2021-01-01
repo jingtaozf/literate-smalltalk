@@ -1,4 +1,4 @@
-# -*- encoding:utf-8 Mode: POLY-ORG; org-src-preserve-indentation: t; -*- ---
+# -*- encoding:utf-8 Mode: POLY-ORG; tab-width: 2; org-src-preserve-indentation: t; -*- ---
 #+TITLE:  Literate programming tool write smalltalk in org mode.
 #+SubTitle: inspired by shampoo.
 #+OPTIONS: toc:2
@@ -54,6 +54,7 @@
     - [[#optionally-define-a-file-extension-for-this-language][optionally define a file extension for this language]]
     - [[#optionally-declare-default-header-arguments][optionally declare default header arguments]]
     - [[#source-code-execution][Source Code Execution]]
+  - [[#code-format][code format]]
   - [[#shortcut][shortcut]]
   - [[#test][Test]]
     - [[#eval-codes][eval codes]]
@@ -76,6 +77,7 @@
     - [[#eval-code-1][eval code]]
     - [[#compile-class-1][compile class]]
     - [[#compile-method-1][compile method]]
+    - [[#format-code-1][format code]]
 
 * Introduction
 This is an attemp to write smalltalk codes in org mode,
@@ -531,9 +533,20 @@ It is slow to build such indexed from remote pharo, let store it to a global var
     (message "Compile method %s." (cdr (assoc 'result resp)))
     ))
 #+END_SRC
-
 *** format code
 [[file:~/projects/smalltalk/pharo/src/Deprecated80/PluggableTextMorph.class.st::tree := RBParser parseMethod: source onError: \[ :msg :pos | ^ self \].][RBParser parseMethod]]
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-format-code (code)
+  (let ((resp (literate-smalltalk-request
+               "format/code"
+               :params `(("source" . ,(encode-coding-string code 'latin-1)))
+               :type "POST")))
+    (unless (string= "success" (cdr (assoc 'status resp)))
+      (error "Failed to format code!"))
+    (decode-coding-string (cdr (assoc 'source resp)) 'latin-1)))
+
+#+END_SRC
+
 *** search a pattern in a buffer and return its position
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-libraries-literate-path "~/Pharo/literate/")
@@ -571,6 +584,7 @@ It is slow to build such indexed from remote pharo, let store it to a global var
     (cl-loop for namespace in namespaces
              do (insert "\n* PACKAGE " namespace "\n")
              (loop for class in (literate-smalltalk-classes namespace)
+                   for categories-dict = (literate-smalltalk-categories class)
                    do (insert "** CLASS " class "\n")
                       (insert "*** CLASS DEFINITION \n")
                       (insert "#+BEGIN_SRC st :type class \n")
@@ -579,12 +593,11 @@ It is slow to build such indexed from remote pharo, let store it to a global var
                       (loop for side in literate-smalltalk-valid-sides
                             for side-symbol = (intern (subseq (symbol-name side) 1))
                             for side-name = (literate-smalltalk-side-sym-as-param side)
-                            for categories-dict = (literate-smalltalk-categories class)
                             do (loop for category across (cdr (assoc side-symbol categories-dict))
                                      for normalized-category = (replace-regexp-in-string
                                                                        " " "@" category)
                                      do (loop for method in (literate-smalltalk-category-methods
-                                                                     class category side)
+                                                                     class category side-name)
                                               do (insert "*** METHOD "
                                                          method "                                            "
                                                                 (symbol-name side)
@@ -595,7 +608,7 @@ It is slow to build such indexed from remote pharo, let store it to a global var
                                                          " :cat \"" category "\""
                                                          "\n")
                                                  (insert (literate-smalltalk-method-source
-                                                                  class method side))
+                                                                  class method side-name))
                                                  (insert "\n#+END_SRC\n")
                                                  (sit-for 0)))))
              (message "namedspace '%s' has been added." namespace))))
@@ -728,12 +741,33 @@ Argument PARAMS: the input parameters."
        (error "Unknown type %s" type)))))
 #+END_SRC
 
+** code format
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-code-format-current-code-block ()
+  (interactive)
+  (let* ((block-info (second (org-element-context)))
+         (code (plist-get block-info :value))
+         (formatted-code (literate-smalltalk-format-code code)))
+    (replace-region-contents
+     (plist-get block-info :begin)
+     (plist-get block-info :end)
+     (lambda ()
+       (let* ((beg-src-line (progn (goto-char (point-min))
+                                   (buffer-substring-no-properties
+                                    (line-beginning-position)
+                                    (line-end-position)))))
+         (concat beg-src-line "\n"
+                 formatted-code "\n"
+                 "#+END_SRC\n"))))))
+#+END_SRC
+
 ** shortcut
 #+BEGIN_SRC elisp
 (define-quick-choice (literate-smalltalk-code-mode)
     ("package of class" literate-smalltalk-namespace-of-current-symbol)
-  ("compile codes" literate-smalltalk-namespace-of-current-symbol)
-  ("update codes" literate-smalltalk-namespace-of-current-symbol)
+  ("compile codes" org-babel-execute-src-block-maybe)
+  ("format code" literate-smalltalk-code-format-current-code-block)
+  ("update codes" literate-smalltalk-update-source)
   )
 #+END_SRC
 
@@ -767,15 +801,15 @@ BaselineOfLiterateServer class
 *** spec
 #+BEGIN_SRC st :type method :class BaselineOfLiterateServer :side instance :cat "baselines"
 baselineOf: spec
-	<baseline>
-	spec
-		for: #common
-		do: [
-			self setUpDependencies: spec.
-			spec package: 'LiterateSmalltalk' with: [ spec requires: #('Teapot') ].
-			spec group: 'default' with: #('LiterateSmalltalk')]
-#+END_SRC
 
+	<baseline>
+	spec for: #common do: [
+		self setUpDependencies: spec.
+		spec
+			package: 'LiterateSmalltalk'
+			with: [ spec requires: #( 'Teapot' ) ].
+		spec group: 'default' with: #( 'LiterateSmalltalk' ) ]
+#+END_SRC
 ** a Teapot server to handle request
 :PROPERTIES:
 :literate-lang: st
@@ -808,14 +842,12 @@ server: server
 *** start the routes
 #+BEGIN_SRC st :type method :name start :class LiterateServer :side class :cat "management" :ns LiterateSmalltalk
 start
+
 	"Start the webserver"
 
 	| teapot |
-
-        " self server ifNotNil: [ setf server stop]."
-
 	"extra check so that we don't close a Pool which wasn't open"
-	"Started ifNotNil: [ Started ifTrue: [ Server  stop ] ]."
+	Started ifNotNil: [ Server stop ].
 	teapot := Teapot configure: {
 			          (#defaultOutput -> #json).
 			          (#port -> 9092).
@@ -823,34 +855,38 @@ start
 			          (#bindAddress -> #[ 127 0 0 1 ]) }.
 	self server: teapot.
 	teapot
-	   GET: '/namespaces' -> [:req | self namespaces ];
-	   GET: '/classes/<namespace>' -> [:req | self classes: (req at: #namespace) ];
-	   GET: '/class/<class>' -> [:req | self classDef: (req at: #class) ];
-	   GET: '/cats/<class>' -> [:req | self classCats: (req at: #class) ];
-	   GET: '/cat/methods' -> [:req |
-		self catMethods: (req at: #class)
-		       category: (req at: #cat)
-		       side: (req at: #side)
-	    ];
-	   GET: '/method/source' -> [:req |
-		self methodSource: (req at: #class)
-		       name: (req at: #name)
-		       side: (req at: #side)
-	    ];
-	   POST: '/eval' -> [:req | self evalCode: (req at: #code)];
-	   POST: '/compile/class' -> [:req |
-		self compileClass: (NeoJSONReader fromString: (req at: #instance))
-		     class: (NeoJSONReader fromString: (req at: #class))
-	    ];
-	   POST: '/compile/method' -> [:req |
-		    self compileMethod: (req at: #class)
-				source: (req at: #source)
-				side: (req at: #side) ];
-	   exception: KeyNotFound -> (TeaResponse notFound body: 'No such method');
-	   start.
+		GET: '/namespaces' -> [ :req | self namespaces ];
+		GET: '/classes/<namespace>'
+			-> [ :req | self classes: (req at: #namespace) ];
+		GET: '/class/<class>' -> [ :req | self classDef: (req at: #class) ];
+		GET: '/cats/<class>' -> [ :req | self classCats: (req at: #class) ];
+		GET: '/cat/methods' -> [ :req |
+				self
+					catMethods: (req at: #class)
+					category: (req at: #cat)
+					side: (req at: #side) ];
+		GET: '/method/source' -> [ :req |
+				self
+					methodSource: (req at: #class)
+					name: (req at: #name)
+					side: (req at: #side) ];
+		POST: '/eval' -> [ :req | self evalCode: (req at: #code) ];
+		POST: '/compile/class' -> [ :req |
+				self
+					compileClass: (NeoJSONReader fromString: (req at: #instance))
+					class: (NeoJSONReader fromString: (req at: #class)) ];
+		POST: '/compile/method' -> [ :req |
+				self
+					compileMethod: (req at: #class)
+					source: (req at: #source)
+					side: (req at: #side) ];
+		POST:
+			'/format/code' -> [ :req | self formatCode: (req at: #source) ];
+		exception:
+			KeyNotFound -> (TeaResponse notFound body: 'No such method');
+		start.
 
-	Started := true.
-
+	Started := true
 #+END_SRC
 *** asStringArray:
 Many reflection methods return different results in various dialects.
@@ -860,50 +896,64 @@ same method returns an Array of Strings in Squeak
 This kludge works as an abstraction over it all
 #+BEGIN_SRC st :type method :class LiterateServer :side class :cat "utilities" :ns LiterateSmalltalk
 asStringArray: items
-    ^(items collect: [:each | each asString]) asArray
+
+	^ (items collect: [ :each | each asString ]) asArray
 #+END_SRC
 *** elementsString
 #+BEGIN_SRC st :type method :class LiterateServer :side class :cat "utilities" :ns LiterateSmalltalk
 elementsString: str
-    ^String join: str separatedBy: ' '
-#+END_SRC
 
+	^ String join: str separatedBy: ' '
+#+END_SRC
 *** get namespaces
 #+BEGIN_SRC st :type method :name namespaces :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 namespaces
-    | names |
 
-    names := (Smalltalk allClasses collect: [:each | each category asString]) asSet asSortedCollection.
-    ^ { #namespaces -> names } asDictionary
+	| names |
+	names := (Smalltalk allClasses collect: [ :each |
+		          each category asString ]) asSet asSortedCollection.
+	^ { (#namespaces -> names) } asDictionary
 #+END_SRC
 *** get classes of one namespace
 #+BEGIN_SRC st :type method :name classes :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 classes: namespace
-    | resultList |
-    resultList := Smalltalk allClasses select: [:each | each category asString = namespace].
-    ^ { #classes -> (resultList collect: [:each | each name asString])} asDictionary
+
+	| resultList |
+	resultList := Smalltalk allClasses select: [ :each |
+		              each category asString = namespace ].
+	^ { (#classes -> (resultList collect: [ :each | each name asString ])) }
+		  asDictionary
 #+END_SRC
 *** get class information
 #+BEGIN_SRC st :type method :name classDef: :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 classDef: className
+
 	| class instanceSide classSide result |
 	class := Smalltalk at: className asSymbol.
 	instanceSide := Dictionary new.
 	instanceSide at: #class put: className.
-	instanceSide at: #superclass put: (class superclass printString).
-	instanceSide at: #instvars put: (self asStringArray: (class instVarNames)).
-	instanceSide at: #classvars put: (self asStringArray: (class classVarNames)).
-	instanceSide at: #poolvars put: (self asStringArray: (class sharedPools)).
-	instanceSide at: #package put: (class category).
+	instanceSide at: #superclass put: class superclass printString.
+	instanceSide
+		at: #instvars
+		put: (self asStringArray: class instVarNames).
+	instanceSide
+		at: #classvars
+		put: (self asStringArray: class classVarNames).
+	instanceSide
+		at: #poolvars
+		put: (self asStringArray: class sharedPools).
+	instanceSide at: #package put: class category.
 
 	class := class class.
 	classSide := Dictionary new.
 	classSide at: #class put: className.
-	classSide at: #superclass put: (class superclass printString).
-	classSide at: #instvars put: (self asStringArray: (class instVarNames)).
-	classSide at: #classvars put: (self asStringArray: (class classVarNames)).
-	classSide at: #poolvars put: (self asStringArray: (class sharedPools)).
-        result := Dictionary new.
+	classSide at: #superclass put: class superclass printString.
+	classSide at: #instvars put: (self asStringArray: class instVarNames).
+	classSide
+		at: #classvars
+		put: (self asStringArray: class classVarNames).
+	classSide at: #poolvars put: (self asStringArray: class sharedPools).
+	result := Dictionary new.
 	result at: #instance put: instanceSide.
 	result at: #class put: classSide.
 	^ result
@@ -911,91 +961,129 @@ classDef: className
 *** get class categories
 #+BEGIN_SRC st :type method :name classCats: :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 classCats: className
-    | class cats instanceSide classSide |
-    result := Dictionary new.
-    class := Smalltalk at: className asSymbol.
-    cats := Set new.
-    class methodDictionary ifNotNil: [:d | d values do:
-	[:each | cats add: each category]].
 
-    result at: #instance put: cats.
+	| class cats instanceSide classSide |
+	result := Dictionary new.
+	class := Smalltalk at: className asSymbol.
+	cats := Set new.
+	class methodDictionary ifNotNil: [ :d |
+		d values do: [ :each | cats add: each category ] ].
 
-    class := class class.
-    cats := Set new.
-    class methodDictionary ifNotNil: [:d | d values do:
-	[:each | cats add: each category]].
-    result at: #class put: cats.
-    ^ result
+	result at: #instance put: cats.
+
+	class := class class.
+	cats := Set new.
+	class methodDictionary ifNotNil: [ :d |
+		d values do: [ :each | cats add: each category ] ].
+	result at: #class put: cats.
+	^ result
 #+END_SRC
 *** get methods in one class category
 #+BEGIN_SRC st :type method :name catMethods: :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 catMethods: className category: cat side: side
-            | class methods allMethods result |
-            class := Smalltalk at: className asSymbol.
-            (side = #class) ifTrue: [class := class class].
 
-            allMethods := class methodDictionary ifNil: [#()] ifNotNil: [:x | x associations].
+	| class methods allMethods result |
+	class := Smalltalk at: className asSymbol.
+	side = #class ifTrue: [ class := class class ].
 
-            methods := (cat = '*'
-                ifTrue: [allMethods]
-                ifFalse: [allMethods select: [:e | e value category = cat]]).
-	   ^ { #methods -> (methods collect: [:each | each key asString]) asSortedCollection } asDictionary
+	allMethods := class methodDictionary
+		              ifNil: [ #(  ) ]
+		              ifNotNil: [ :x | x associations ].
+
+	methods := cat = '*'
+		           ifTrue: [ allMethods ]
+		           ifFalse: [
+		           allMethods select: [ :e | e value category = cat ] ].
+	^ { (#methods
+	   ->
+	   (methods collect: [ :each | each key asString ])
+		   asSortedCollection) } asDictionary
 #+END_SRC
 *** get method source
 #+BEGIN_SRC st :type method :name methodSource: :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 methodSource: className name: name side: side
+
 	| class method |
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 	method := class methodDictionary at: name asSymbol.
-	^ {#source -> method sourceCode} asDictionary
+	^ { (#source -> method sourceCode) } asDictionary
 #+END_SRC
 *** eval code
 #+BEGIN_SRC st :type method :name methodSource: :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 evalCode: code
-    | status result |
-    status  := #success.
-    result := [OpalCompiler new source: code; evaluate] onErrorDo:  [ result := #failed ].
-    ^ {#result -> result. #status -> status} asDictionary
+
+	| status result |
+	status := #success.
+	result := [
+	          OpalCompiler new
+		          source: code;
+		          evaluate ] onErrorDo: [ result := #failed ].
+	^ {
+		  (#result -> result).
+		  (#status -> status) } asDictionary
 #+END_SRC
 *** compile class
 #+BEGIN_SRC st :type method :name compileMethod :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 compileClass: instDef class: classDef
-    | parent class status instvars classvars |
 
-    status := #success.
-    instvars := ''.
-    (instDef at: #instvars) ifNotNil: [ instvars := (self elementsString: (instDef at: #instvars)) ].
+	| parent class status instvars classvars |
+	status := #success.
+	instvars := ''.
+	(instDef at: #instvars) ifNotNil: [
+		instvars := self elementsString: (instDef at: #instvars) ].
 
-    classvars := ''.
-    (instDef at: #classvars) ifNotNil: [ classvars := (self elementsString: (instDef at: #classvars)) ].
+	classvars := ''.
+	(instDef at: #classvars) ifNotNil: [
+		classvars := self elementsString: (instDef at: #classvars) ].
 
-    "Looks a bit kludgy, but currently I dont know how to make it better. TODO: refactor"
-    parent := Smalltalk at: ((instDef at: #super) asSymbol).
-    [ class := parent
-		    subclass: (instDef at: #name) asSymbol
-		    instanceVariableNames: instvars
-		    classVariableNames: classvars
-		    poolDictionaries: ''
-		    category: (instDef at: #package)
-    ] on: Error do: [:e | Transcript show: e printString; cr. status := #failed ].
+	"Looks a bit kludgy, but currently I dont know how to make it better. TODO: refactor"
+	parent := Smalltalk at: (instDef at: #super) asSymbol.
+	[
+	class := parent
+		         subclass: (instDef at: #name) asSymbol
+		         instanceVariableNames: instvars
+		         classVariableNames: classvars
+		         poolDictionaries: ''
+		         category: (instDef at: #package) ]
+		on: Error
+		do: [ :e |
+			Transcript
+				show: e printString;
+				cr.
+			status := #failed ].
 
-    class := Smalltalk at: (instDef at: #name) asSymbol ifAbsent: [nil].
-    "On Pharo, there were a strange exception when using the safe form."
-    instvars := ''.
-    (classDef at: #instvars) ifNotNil: [ instvars := (self elementsString: (classDef at: #instvars)) ].
-    class class instanceVariableNames: instvars.
+	class := Smalltalk at: (instDef at: #name) asSymbol ifAbsent: [ nil ].
+	"On Pharo, there were a strange exception when using the safe form."
+	instvars := ''.
+	(classDef at: #instvars) ifNotNil: [
+		instvars := self elementsString: (classDef at: #instvars) ].
+	class class instanceVariableNames: instvars.
 
-    ^ {#status -> status} asDictionary.
+	^ { (#status -> status) } asDictionary
 #+END_SRC
 *** compile method
 #+BEGIN_SRC st :type method :name compileMethod :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
 compileMethod: className source: source side: side
+
 	| class result |
-	class := (Smalltalk at: className asSymbol).
-	(side = #class) ifTrue: [class := class class].
+	class := Smalltalk at: className asSymbol.
+	side = #class ifTrue: [ class := class class ].
 
 	result := #success.
-	[class compile: source] onErrorDo: [ result := #failed ].
-	^ {#result -> result} asDictionary
+	[ class compile: source ] onErrorDo: [ result := #failed ].
+	^ { (#result -> result) } asDictionary
+#+END_SRC
+*** format code
+#+BEGIN_SRC st :type method :class LiterateServer :side class :cat "accessing"
+formatCode: source
+
+	| tree |
+	tree := RBParser
+		        parseMethod: source
+		        onError: [ :msg :pos |
+		        ^ { (#status -> #failed) } asDictionary ].
+	^ {
+		  (#status -> #success).
+		  (#source -> tree formattedCode) } asDictionary
 #+END_SRC
