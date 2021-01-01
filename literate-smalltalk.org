@@ -527,6 +527,7 @@ It is slow to build such indexed from remote pharo, let store it to a global var
   (let ((resp (literate-smalltalk-request
                "compile/method"
                :params `(("class" . ,class)
+                       ("category" . ,category)
                        ("source" . ,code)
                        ("side" . ,(literate-smalltalk-side-sym-as-param side)))
                :type "POST")))
@@ -878,6 +879,7 @@ start
 		POST: '/compile/method' -> [ :req |
 				self
 					compileMethod: (req at: #class)
+					category: (req at: #category)
 					source: (req at: #source)
 					side: (req at: #side) ];
 		POST:
@@ -1010,7 +1012,7 @@ methodSource: className name: name side: side
 	^ { (#source -> method sourceCode) } asDictionary
 #+END_SRC
 *** eval code
-#+BEGIN_SRC st :type method :name methodSource: :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
+#+BEGIN_SRC st :type method :name methodSource: :class LiterateServer :side class :cat "compile" :ns LiterateSmalltalk
 evalCode: code
 
 	| status result |
@@ -1024,7 +1026,7 @@ evalCode: code
 		  (#status -> status) } asDictionary
 #+END_SRC
 *** compile class
-#+BEGIN_SRC st :type method :name compileMethod :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
+#+BEGIN_SRC st :type method :name compileMethod :class LiterateServer :side class :cat "compile" :ns LiterateSmalltalk
 compileClass: instDef class: classDef
 
 	| parent class status instvars classvars |
@@ -1063,19 +1065,19 @@ compileClass: instDef class: classDef
 	^ { (#status -> status) } asDictionary
 #+END_SRC
 *** compile method
-#+BEGIN_SRC st :type method :name compileMethod :class LiterateServer :side class :cat "accessing" :ns LiterateSmalltalk
-compileMethod: className source: source side: side
+#+BEGIN_SRC st :type method :name compileMethod :class LiterateServer :side class :cat "compile" :ns LiterateSmalltalk
+compileMethod: className category: cat source: source side: side
 
 	| class result |
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
 	result := #success.
-	[ class compile: source ] onErrorDo: [ result := #failed ].
+	[ class compile: source classified: cat ] onErrorDo: [ result := #failed ].
 	^ { (#result -> result) } asDictionary
 #+END_SRC
 *** format code
-#+BEGIN_SRC st :type method :class LiterateServer :side class :cat "accessing"
+#+BEGIN_SRC st :type method :class LiterateServer :side class :cat "compile"
 formatCode: source
 
 	| tree |
