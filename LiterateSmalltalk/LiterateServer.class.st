@@ -20,7 +20,7 @@ LiterateServer class >> asStringArray: items [
 { #category : #accessing }
 LiterateServer class >> catMethods: className category: cat side: side [
 
-	| class methods allMethods result |
+	| class methods allMethods |
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
@@ -41,7 +41,7 @@ LiterateServer class >> catMethods: className category: cat side: side [
 { #category : #accessing }
 LiterateServer class >> classCats: className [
 
-	| class cats instanceSide classSide |
+	| class cats result |
 	result := Dictionary new.
 	class := Smalltalk at: className asSymbol.
 	cats := Set new.
@@ -97,7 +97,7 @@ LiterateServer class >> classDef: className [
 LiterateServer class >> classes: namespace [
 
 	| resultList |
-	resultList := Smalltalk allClasses select: [ :each |
+	resultList := Smalltalk globals allClasses select: [ :each |
 		              each category asString = namespace ].
 	^ { (#classes -> (resultList collect: [ :each | each name asString ])) }
 		  asDictionary
@@ -202,7 +202,7 @@ LiterateServer class >> methodSource: className name: name side: side [
 LiterateServer class >> namespaces [
 
 	| names |
-	names := (Smalltalk allClasses collect: [ :each |
+	names := (Smalltalk globals allClasses collect: [ :each |
 		          each category asString ]) asSet asSortedCollection.
 	^ { (#namespaces -> names) } asDictionary
 ]
