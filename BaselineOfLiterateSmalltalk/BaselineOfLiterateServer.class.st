@@ -1,3 +1,6 @@
+"
+Baseline of LiterateSmalltalk.
+"
 Class {
 	#name : #BaselineOfLiterateServer,
 	#superclass : #BaselineOf,

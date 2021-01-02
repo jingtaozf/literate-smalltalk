@@ -1,3 +1,6 @@
+"
+The REST Server for LiterateSmalltalk.
+"
 Class {
 	#name : #LiterateServer,
 	#superclass : #Object,
@@ -73,6 +76,7 @@ LiterateServer class >> classDef: className [
 		at: #poolvars
 		put: (self asStringArray: class sharedPools).
 	instanceSide at: #package put: class category.
+	instanceSide at: #comment put: class comment.
 
 	class := class class.
 	classSide := Dictionary new.
@@ -129,6 +133,7 @@ LiterateServer class >> compileClass: instDef class: classDef [
 			status := #failed ].
 
 	class := Smalltalk at: (instDef at: #name) asSymbol ifAbsent: [ nil ].
+	class comment: (instDef at: #comment).
 	"On Pharo, there were a strange exception when using the safe form."
 	instvars := ''.
 	(classDef at: #instvars) ifNotNil: [
