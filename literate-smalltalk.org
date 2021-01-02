@@ -518,8 +518,8 @@ It is slow to build such indexed from remote pharo, let store it to a global var
          (instance-data (literate-smalltalk-parse-subclass-definition (first code-parts)))
          (class-data (literate-smalltalk-parse-class-definition (cdr code-parts))))
     (unless (and instance-data class-data)
+      (message "instance-data:'%s', class-data: '%s'" instance-data class-data)
       (error "Failed to get class information."))
-    ;; (message "instance-data:'%s', class-data: '%s'" instance-data class-data)
     (let ((resp (literate-smalltalk-request
                  "compile/class"
                  :params `(("instance" . ,(json-encode instance-data))
@@ -954,6 +954,7 @@ classDef: className
 		at: #poolvars
 		put: (self asStringArray: class sharedPools).
 	instanceSide at: #package put: class category.
+	instanceSide at: #comment put: class comment.
 
 	class := class class.
 	classSide := Dictionary new.
