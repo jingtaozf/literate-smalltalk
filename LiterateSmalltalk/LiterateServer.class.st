@@ -182,7 +182,7 @@ LiterateServer class >> formatCode: source [
 	tree := RBParser
 		        parseMethod: source
 		        onError: [ :msg :pos |
-		        ^ { (#status -> #failed) } asDictionary ].
+		        ^ { #status -> #failed. #msg -> msg. #pos -> pos } asDictionary ].
 	^ {
 		  (#status -> #success).
 		  (#source -> tree formattedCode) } asDictionary
