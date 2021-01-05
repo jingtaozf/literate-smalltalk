@@ -567,7 +567,7 @@ classes: namespace
                                      :params `(("class" . ,class)
                                                ("name" . ,method)
                                                ("side" . ,side)))))))
-    (decode-coding-string source 'latin-1)))
+    (decode-coding-string source 'latin-1-mac)))
 #+END_SRC
 ** Pharo
 *** class definition
@@ -832,13 +832,13 @@ evalCode: code
 (defun literate-smalltalk-format-code (code)
   (let ((resp (literate-smalltalk-request
                "format/code"
-               :params `(("source" . ,(encode-coding-string code 'latin-1)))
+               :params `(("source" . ,(encode-coding-string code 'latin-1-mac)))
                :type "POST")))
     (unless (string= "success" (cdr (assoc 'status resp)))
       (error "Failed to format code at %s:%s!"
              (cdr (assoc 'pos resp))
              (cdr (assoc 'msg resp))))
-    (decode-coding-string (cdr (assoc 'source resp)) 'latin-1)))
+    (decode-coding-string (cdr (assoc 'source resp)) 'latin-1-mac)))
 
 #+END_SRC
 ** command to code format
@@ -1034,7 +1034,7 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
                        (org-entry-get (point) "literate-class" t))))
                  (t
                   (error "Unknown supported type %s" type))))
-         (body (and code (decode-coding-string code 'latin-1))))
+         (body (and code (decode-coding-string code 'latin-1-mac))))
     (when body
       (let ((block-info (second (org-element-context))))
         (replace-region-contents (plist-get block-info :begin)
@@ -1150,7 +1150,7 @@ Argument PARAMS: the input parameters."
         (side (if (cdr (assq :side params))
                 (intern (concat ":" (cdr (assq :side params))))
                 :instance))
-        (code (encode-coding-string body 'latin-1)))
+        (code (encode-coding-string body 'latin-1-mac)))
     (case type
       (:code (literate-smalltalk-eval code))
       (:method
