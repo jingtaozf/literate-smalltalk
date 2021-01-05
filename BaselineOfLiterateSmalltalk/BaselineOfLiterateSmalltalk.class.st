@@ -9,9 +9,14 @@ Class {
 
 { #category : #baselines }
 BaselineOfLiterateSmalltalk >> baselineOf: spec [
-
 	<baseline>
 	spec for: #common do: [
+		spec
+			baseline: 'Teapot' with: [
+				spec
+					repository: 'github://zeroflag/Teapot:v2.6.0/source';
+					loads: #( 'Deployment' ) ];
+			import: 'Teapot'.
 		spec
 			package: 'LiterateSmalltalk'
 			with: [ spec requires: #( 'Teapot' ) ].

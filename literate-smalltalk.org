@@ -280,32 +280,39 @@ text-mode "Literate Smalltalk code"
     resp))
 #+END_SRC
 * baseline for pharo
+:PROPERTIES:
+:literate-class: BaselineOfLiterateSmalltalk
+:END:
 ** definition
-#+BEGIN_SRC smalltalk :type class :name BaselineOfLiterateSmalltalk :ns BaselineOfLiterateSmalltalk
+#+BEGIN_SRC smalltalk
 "
 Baseline of LiterateSmalltalk.
 "
-BaselineOf subclass: #BaselineOfLiterateServer
+BaselineOf subclass: #BaselineOfLiterateSmalltalk
     instanceVariableNames: ''
     classVariableNames: ''
     package: 'BaselineOfLiterateSmalltalk'
 ----------------------
-BaselineOfLiterateServer class
+BaselineOfLiterateSmalltalk class
     instanceVariableNames: ''
 #+END_SRC
 ** spec
-#+BEGIN_SRC smalltalk :type method :class BaselineOfLiterateServer :side instance :cat "baselines"
+#+BEGIN_SRC smalltalk :cat "baseline"
 baselineOf: spec
 
 	<baseline>
 	spec for: #common do: [
-		self setUpDependencies: spec.
+		spec
+			baseline: 'Teapot' with: [
+				spec
+					repository: 'github://zeroflag/Teapot:v2.6.0/source';
+					loads: #( 'Deployment' ) ];
+			import: 'Teapot'.
 		spec
 			package: 'LiterateSmalltalk'
 			with: [ spec requires: #( 'Teapot' ) ].
 		spec group: 'default' with: #( 'LiterateSmalltalk' ) ]
 #+END_SRC
-
 * a Teapot server to handle request
 ** definition
 #+BEGIN_SRC smalltalk
