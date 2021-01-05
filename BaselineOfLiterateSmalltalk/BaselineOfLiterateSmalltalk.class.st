@@ -2,13 +2,13 @@
 Baseline of LiterateSmalltalk.
 "
 Class {
-	#name : #BaselineOfLiterateServer,
+	#name : #BaselineOfLiterateSmalltalk,
 	#superclass : #BaselineOf,
 	#category : #BaselineOfLiterateSmalltalk
 }
 
 { #category : #baselines }
-BaselineOfLiterateServer >> baselineOf: spec [
+BaselineOfLiterateSmalltalk >> baselineOf: spec [
 
 	<baseline>
 	spec for: #common do: [
