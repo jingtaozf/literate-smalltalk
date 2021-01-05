@@ -151,7 +151,7 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 	side = #class ifTrue: [ class := class class ].
 
 	result := #success.
-	[ class compile: source classified: cat ] onErrorDo: [ result := #failed ].
+	[ class compile: source classified: cat ] on: Error do: [ result := #failed ].
 	^ { (#result -> result) } asDictionary
 ]
 
@@ -169,7 +169,7 @@ LiterateServer class >> evalCode: code [
 	result := [
 	          OpalCompiler new
 		          source: code;
-		          evaluate ] onErrorDo: [ result := #failed ].
+		          evaluate ] on: Error do: [ result := #failed ].
 	^ {
 		  (#result -> result).
 		  (#status -> status) } asDictionary

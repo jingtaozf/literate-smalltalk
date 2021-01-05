@@ -7,8 +7,9 @@ Class {
 	#category : #BaselineOfLiterateSmalltalk
 }
 
-{ #category : #baselines }
+{ #category : #baseline }
 BaselineOfLiterateSmalltalk >> baselineOf: spec [
+
 	<baseline>
 	spec for: #common do: [
 		spec
