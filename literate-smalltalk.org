@@ -1161,7 +1161,7 @@ Argument PARAMS: the input parameters."
            (cdr (assq :cat params))
            code))
       (:class
-       (literate-smalltalk-compile-class code))
+       (literate-smalltalk-compile-class body))
       (t
        (error "Unknown type %s" type)))))
 #+END_SRC
