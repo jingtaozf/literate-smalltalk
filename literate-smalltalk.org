@@ -354,6 +354,7 @@ start
 			          (#port -> 9092).
 			          (#debugMode -> true).
 			          (#bindAddress -> #[ 127 0 0 1 ]) }.
+	teapot erver logLevel: 1.
 	self server: teapot.
 	teapot
 		GET: '/namespaces' -> [ :req | self namespaces ];
@@ -1138,7 +1139,7 @@ This function is called by `org-babel-execute-src-block',
 Argument BODY: the code body
 Argument PARAMS: the input parameters."
   (let* ((result-params (cdr (assq :result-params params)))
-         (results (literate-smalltalk-execute-code-block body params)))
+         (results (format "%s" (literate-smalltalk-execute-code-block body params))))
     (when results
       (org-babel-result-cond result-params
         results
