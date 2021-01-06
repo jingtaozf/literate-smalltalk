@@ -232,6 +232,7 @@ LiterateServer class >> start [
 			          (#port -> 9092).
 			          (#debugMode -> true).
 			          (#bindAddress -> #[ 127 0 0 1 ]) }.
+	teapot erver logLevel: 1.
 	self server: teapot.
 	teapot
 		GET: '/namespaces' -> [ :req | self namespaces ];
