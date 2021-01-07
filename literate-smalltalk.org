@@ -832,6 +832,8 @@ evalCode: code
     (error "Please specifiy the class of current method!"))
   (unless side
     (error "Please specifiy the side of current method!"))
+  (unless category
+    (error "Please specifiy the category of current method!"))
   (let ((resp (literate-smalltalk-request
                "compile/method"
                :params `(("class" . ,class)
