@@ -570,6 +570,10 @@ classes: namespace
 *** get method source
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-method-source (class method side)
+  (unless class
+    (error "Please specifiy the class of current method!"))
+  (unless side
+    (error "Please specifiy the side of current method!"))
   (let ((source (cdr (assoc 'source (literate-smalltalk-request
                                      "method/source"
                                      :params `(("class" . ,class)
@@ -824,6 +828,10 @@ evalCode: code
 *** compile method
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-compile-method (class side category code)
+  (unless class
+    (error "Please specifiy the class of current method!"))
+  (unless side
+    (error "Please specifiy the side of current method!"))
   (let ((resp (literate-smalltalk-request
                "compile/method"
                :params `(("class" . ,class)
@@ -1026,9 +1034,8 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
                  (if (search "subclass: #" body)
                    :class
                    :method)))
-         (side (if (cdr (assq :side params))
-                 (intern (concat ":" (cdr (assq :side params))))
-                 :instance))
+         (side (and (cdr (assq :side params))
+                    (intern (concat ":" (cdr (assq :side params))))))
          (code (case type
                  (:method
                      (literate-smalltalk-method-source
@@ -1157,19 +1164,18 @@ Argument PARAMS: the input parameters."
                 (if (search "subclass: #" body)
                   :class
                   :method)))
-        (side (if (cdr (assq :side params))
-                (intern (concat ":" (cdr (assq :side params))))
-                :instance))
+        (side (and (cdr (assq :side params))
+                   (intern (concat ":" (cdr (assq :side params))))))
         (code (encode-coding-string body 'latin-1-mac)))
     (case type
       (:code (literate-smalltalk-eval code))
       (:method
-          (literate-smalltalk-compile-method
-           (or (cdr (assq :class params))
-               (org-entry-get (point) "literate-class" t))
-           side
-           (cdr (assq :cat params))
-           code))
+        (literate-smalltalk-compile-method
+         (or (cdr (assq :class params))
+             (org-entry-get (point) "literate-class" t))
+         side
+         (cdr (assq :cat params))
+         code))
       (:class
        (literate-smalltalk-compile-class body))
       (t
