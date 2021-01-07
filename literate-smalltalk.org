@@ -297,7 +297,7 @@ BaselineOfLiterateSmalltalk class
     instanceVariableNames: ''
 #+END_SRC
 ** spec
-#+BEGIN_SRC smalltalk :cat "baseline"
+#+BEGIN_SRC smalltalk :cat "baseline" :side instance
 baselineOf: spec
 
 	<baseline>
@@ -1193,12 +1193,11 @@ Argument PARAMS: the input parameters."
       (setf end (point-max))
       (unless (eq 'headline (first element))
         (error "Please move point to a headline.")))
-    (save-excursion
-      (goto-char begin)
-      (while (search-forward "#+BEGIN_SRC smalltalk" end t)
-        (unless (search ":type code" (buffer-substring-no-properties (line-beginning-position)
-                                                                     (line-end-position)))
-          (org-babel-execute-src-block-maybe))))))
+    (goto-char begin)
+    (while (search-forward "#+BEGIN_SRC smalltalk" end t)
+      (unless (search ":type code" (buffer-substring-no-properties (line-beginning-position)
+                                                                   (line-end-position)))
+        (org-babel-execute-src-block-maybe)))))
 #+END_SRC
 
 * shortcut
