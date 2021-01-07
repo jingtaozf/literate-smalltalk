@@ -515,7 +515,7 @@ classes: namespace
     (with-temp-buffer
       (insert "\"")
       (newline)
-      (insert (cdr (assoc 'comment instance)))
+      (insert (decode-coding-string (cdr (assoc 'comment instance)) 'latin-1-mac))
       (newline)
       (insert "\"")
       (newline)
