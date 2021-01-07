@@ -171,7 +171,7 @@ LiterateServer class >> evalCode: code [
 		          source: code;
 		          evaluate ] on: Error do: [ result := #failed ].
 	^ {
-		  (#result -> result).
+		  (#result -> result asString).
 		  (#status -> status) } asDictionary
 ]
 
