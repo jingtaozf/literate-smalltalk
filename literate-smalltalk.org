@@ -689,7 +689,7 @@ evalCode: code
 		          source: code;
 		          evaluate ] on: Error do: [ result := #failed ].
 	^ {
-		  (#result -> result).
+		  (#result -> result asString).
 		  (#status -> status) } asDictionary
 #+END_SRC
 
@@ -1139,7 +1139,9 @@ This function is called by `org-babel-execute-src-block',
 Argument BODY: the code body
 Argument PARAMS: the input parameters."
   (let* ((result-params (cdr (assq :result-params params)))
-         (results (format "%s" (literate-smalltalk-execute-code-block body params))))
+         (results (literate-smalltalk-execute-code-block body params)))
+    (unless (stringp results)
+      (setf results (format "%s" results)))
     (when results
       (org-babel-result-cond result-params
         results
