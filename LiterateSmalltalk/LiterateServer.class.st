@@ -208,6 +208,55 @@ LiterateServer class >> namespaces [
 ]
 
 { #category : #accessing }
+LiterateServer class >> packageExtensions: packageName [
+
+	| package methods |
+	package := RPackageOrganizer default
+		           packageNamed: packageName asSymbol
+		           ifAbsent: RPackage new.
+	methods := package extensionMethods collect: [ :each |
+		           | class side |
+		           class := each methodClass.
+		           side := #instance.
+		           (class isKindOf: Metaclass) ifTrue: [
+			           side := #class.
+			           class := class instanceSide ].
+		           {
+			           (#name -> each name).
+			           (#selector -> each selector).
+			           (#category -> each category).
+			           (#side -> side).
+			           (#code -> each sourceCode).
+			           (#class -> class asString) } asDictionary ].
+	^ methods
+]
+
+{ #category : #accessing }
+LiterateServer class >> packageTags: packageName [
+
+	| package tags |
+	package := RPackageOrganizer default
+		           packageNamed: packageName asSymbol
+		           ifAbsent: RPackage new.
+	tags := (package classTags collect: [ :each |
+		         {
+			         (#name -> each name asString).
+			         (#classes
+			          ->
+			          (each orderedClasses collect: [ :each | each asString ])) }
+			         asDictionary ]) sorted:
+		        [ :item | item at: #name ] ascending.
+	" package extensionMethods size > 0 ifTrue: [ tags add: 'Extensions' ]. "
+
+	^ { (#tags -> tags) } asDictionary
+]
+
+{ #category : #accessing }
+LiterateServer class >> packages [
+	^ { (#packages -> RPackageOrganizer default packageNames ) } asDictionary
+]
+
+{ #category : #accessing }
 LiterateServer class >> server [
 	"returns teapot instance"
 	^ Server
@@ -238,6 +287,11 @@ LiterateServer class >> start [
 		GET: '/namespaces' -> [ :req | self namespaces ];
 		GET: '/classes/<namespace>'
 			-> [ :req | self classes: (req at: #namespace) ];
+		GET: '/packages' -> [ :req | self packages ];
+		GET: '/package/tags/<package>'
+			-> [ :req | self packageTags: (req at: #package) ];
+		GET: '/package/extensions/<package>'
+			-> [ :req | self packageExtensions: (req at: #package) ];
 		GET: '/class/<class>' -> [ :req | self classDef: (req at: #class) ];
 		GET: '/cats/<class>' -> [ :req | self classCats: (req at: #class) ];
 		GET: '/cat/methods' -> [ :req |
