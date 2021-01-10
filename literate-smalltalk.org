@@ -53,6 +53,7 @@
   - [[#compile-1][compile]]
     - [[#emacs-2][Emacs]]
     - [[#command-to-code-format][command to code format]]
+    - [[#command-to-code-completion][command to code completion]]
     - [[#pharo-2][Pharo]]
   - [[#code-navigation][Code navigation]]
     - [[#search-a-pattern-in-a-buffer-and-return-its-position][search a pattern in a buffer and return its position]]
@@ -385,11 +386,9 @@ start
 					side: (req at: #side) ];
 		POST:
 			'/format/code' -> [ :req | self formatCode: (req at: #source) ];
-		POST: '/completion/code' -> [ :req |
-				self
-					completion: (req at: #class)
-					source: (req at: #source)
-					position: (req at: #position) asInteger ];
+		POST: '/completion/code'
+			-> [ :req |
+				self completion: (req at: #class) source: (req at: #source) ];
 		exception:
 			KeyNotFound -> (TeaResponse notFound body: 'No such method');
 		start.
@@ -958,12 +957,11 @@ evalCode: code
 #+END_SRC
 **** API request to complete code at position
 #+BEGIN_SRC elisp
-(defun literate-smalltalk-request-complete-code (class source position)
+(defun literate-smalltalk-request-complete-code (class source)
   (literate-smalltalk-request
    "completion/code"
    :params `(("class" . ,class)
-             ("source" . ,(encode-coding-string code 'latin-1-mac))
-             ("position" . ,position))
+             ("source" . ,(encode-coding-string code 'latin-1-mac)))
    :type "POST"))
 #+END_SRC
 
@@ -997,6 +995,24 @@ evalCode: code
                  formatted-code "\n"
                  "#+END_SRC\n"))))
     (message "format code done.")))
+#+END_SRC
+
+
+*** command to code completion
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-code-complete-current-code-block ()
+  (interactive)
+  (let* ((block-info (second (org-element-context)))
+         (code-start-point (save-excursion
+                             (goto-char (plist-get block-info :begin))
+                             (forward-line)
+                             (line-beginning-position)))
+         (code (buffer-substring-no-properties code-start-point (point)))
+         (completed-list (literate-smalltalk-request-complete-code
+                          (or (cdr (assq :class block-info))
+                              (org-entry-get (point) "literate-class" t))
+                          code)))
+    (message "completions: %s." completed-list)))
 #+END_SRC
 
 
@@ -1076,10 +1092,17 @@ formatCode: source
 #+END_SRC
 **** completion
 #+BEGIN_SRC smalltalk :type method :side class :cat "compile"
-completion: class source: source position: position
-  ^ nil
-#+END_SRC
+completion: className source: source
 
+	| class context |
+	class := Smalltalk at: className asSymbol.
+	context := CompletionContext
+		           engine: CompletionEngine new
+		           class: class
+		           source: source
+		           position: source size.
+	^ context entries collect: [ :each | each contents ]
+#+END_SRC
 **** critiques
 #+BEGIN_SRC smalltalk :type method :side class :cat "compile"
 critiques: className method: methodName side: side
