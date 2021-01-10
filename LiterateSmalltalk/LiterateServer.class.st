@@ -146,13 +146,36 @@ LiterateServer class >> compileClass: instDef class: classDef [
 { #category : #compile }
 LiterateServer class >> compileMethod: className category: cat source: source side: side [
 
-	| class result |
+	| class result selector critiques |
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
 	result := #success.
-	[ class compile: source classified: cat ] on: Error do: [ result := #failed ].
-	^ { (#result -> result) } asDictionary
+	critiques := ''.
+	[
+	selector := class compile: source classified: cat.
+	critiques := (class >> selector) critiques collect: [ :each |
+		             each asString ] ]
+		on: Error
+		do: [ :ex | result := ex asString ].
+	^ {
+		  (#result -> result).
+		  (#critiques -> critiques) } asDictionary
+]
+
+{ #category : #compile }
+LiterateServer class >> completion: class source: source position: position [
+  ^ nil
+]
+
+{ #category : #compile }
+LiterateServer class >> critiques: className method: methodName side: side [
+
+	| class critiques |
+	class := self class environment at: className.
+	side = #class ifTrue: [ class := class class ].
+	critiques := (class >> methodName asSymbol) critiques.
+	^ critiques collect: [ :each | each asString ]
 ]
 
 { #category : #utilities }
@@ -304,6 +327,11 @@ LiterateServer class >> start [
 					methodSource: (req at: #class)
 					name: (req at: #name)
 					side: (req at: #side) ];
+		GET: '/critiques/method' -> [ :req |
+				self
+					critiques: (req at: #class)
+					method: (req at: #method)
+					side: (req at: #side) ];
 		POST: '/eval' -> [ :req | self evalCode: (req at: #code) ];
 		POST: '/compile/class' -> [ :req |
 				self
@@ -317,6 +345,11 @@ LiterateServer class >> start [
 					side: (req at: #side) ];
 		POST:
 			'/format/code' -> [ :req | self formatCode: (req at: #source) ];
+		POST: '/completion/code' -> [ :req |
+				self
+					completion: (req at: #class)
+					source: (req at: #source)
+					position: (req at: #position) asInteger ];
 		exception:
 			KeyNotFound -> (TeaResponse notFound body: 'No such method');
 		start.
