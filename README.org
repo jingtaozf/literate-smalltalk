@@ -1,4 +1,4 @@
-# -*- encoding:utf-8 Mode: POLY-ORG;  -*- --- 
+# -*- encoding:utf-8 Mode: POLY-ORG;  -*- ---
 #+Startup: noindent
 #+PROPERTY:    header-args        :results silent   :eval no-export   :comments org
 #+OPTIONS:     num:nil toc:nil todo:nil tasks:nil tags:nil
@@ -8,4 +8,4 @@
 - [[#introduction][Introduction]]
 
 * Introduction
-This project is still in alpha status, will update document when it is read to release.
+This project is still in alpha status, will update document when it is ready to release.
