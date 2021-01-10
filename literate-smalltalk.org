@@ -384,8 +384,9 @@ start
 					category: (req at: #category)
 					source: (req at: #source)
 					side: (req at: #side) ];
-		POST:
-			'/format/code' -> [ :req | self formatCode: (req at: #source) ];
+		POST: '/format/code'
+			-> [ :req |
+				self formatCode: (req at: #source) type: (req at: #type) ];
 		POST: '/completion/code'
 			-> [ :req |
 				self completion: (req at: #class) source: (req at: #source) ];
@@ -943,10 +944,11 @@ evalCode: code
 **** API request to format code
 [[file:~/projects/smalltalk/pharo/src/Deprecated80/PluggableTextMorph.class.st::tree := RBParser parseMethod: source onError: \[ :msg :pos | ^ self \].][RBParser parseMethod]]
 #+BEGIN_SRC elisp
-(defun literate-smalltalk-format-code (code)
+(defun literate-smalltalk-format-code (code type)
   (let ((resp (literate-smalltalk-request
                "format/code"
-               :params `(("source" . ,(encode-coding-string code 'latin-1-mac)))
+               :params `(("source" . ,(encode-coding-string code 'latin-1-mac))
+                         ("type" . ,type))
                :type "POST")))
     (unless (string= "success" (cdr (assoc 'status resp)))
       (error "Failed to format code at %s:%s!"
@@ -980,12 +982,16 @@ evalCode: code
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-code-format-current-code-block ()
   (interactive)
-  (let* ((block-info (second (org-element-context)))
-         (code (plist-get block-info :value))
-         (formatted-code (literate-smalltalk-format-code code)))
+  (let* ((context-info (second (org-element-context)))
+         (block-arguments (third (org-babel-get-src-block-info)))
+         (code (plist-get context-info :value))
+         (type (aif (cdr (assoc :type block-arguments))
+                 it
+                 "method"))
+         (formatted-code (literate-smalltalk-format-code code type)))
     (replace-region-contents
-     (plist-get block-info :begin)
-     (plist-get block-info :end)
+     (plist-get context-info :begin)
+     (plist-get context-info :end)
      (lambda ()
        (let* ((beg-src-line (progn (goto-char (point-min))
                                    (buffer-substring-no-properties
@@ -1079,13 +1085,18 @@ compileMethod: className category: cat source: source side: side
 #+END_SRC
 **** format code
 #+BEGIN_SRC smalltalk :type method :side class :cat "compile"
-formatCode: source
+formatCode: source type: type
 
-	| tree |
-	tree := RBParser
-		        parseMethod: source
-		        onError: [ :msg :pos |
-		        ^ { #status -> #failed. #msg -> msg. #pos -> pos } asDictionary ].
+	| tree errBlock |
+	errBlock := [ :msg :pos |
+	            ^ {
+		              (#status -> #failed).
+		              (#msg -> msg).
+		              (#pos -> pos) } asDictionary ].
+	type = 'code'
+		ifTrue: [
+		tree := RBParser parseExpression: source onError: errBlock ]
+		ifFalse: [ tree := RBParser parseMethod: source onError: errBlock ].
 	^ {
 		  (#status -> #success).
 		  (#source -> tree formattedCode) } asDictionary
@@ -1464,7 +1475,11 @@ Argument PARAMS: the input parameters."
 * Release to pharo
 #+BEGIN_SRC smalltalk :type code
 working := FileSystem disk workingDirectory.
-working / 'projects/literate-smalltalk/LiterateSmalltalk/LiterateServer.class.st'	writeStreamDo: [ :s | TonelWriter exportClass: LiterateServer on: s ]; yourself.
+(working
+ /
+	 'projects/literate-smalltalk/LiterateSmalltalk/LiterateServer.class.st')
+	writeStreamDo: [ :s | TonelWriter exportClass: LiterateServer on: s ];
+	yourself
 #+END_SRC
 * Test
 ** eval codes

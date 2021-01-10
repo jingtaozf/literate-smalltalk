@@ -164,8 +164,16 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 ]
 
 { #category : #compile }
-LiterateServer class >> completion: class source: source position: position [
-  ^ nil
+LiterateServer class >> completion: className source: source [
+
+	| class context |
+	class := Smalltalk at: className asSymbol.
+	context := CompletionContext
+		           engine: CompletionEngine new
+		           class: class
+		           source: source
+		           position: source size.
+	^ context entries collect: [ :each | each contents ]
 ]
 
 { #category : #compile }
@@ -206,6 +214,24 @@ LiterateServer class >> formatCode: source [
 		        parseMethod: source
 		        onError: [ :msg :pos |
 		        ^ { #status -> #failed. #msg -> msg. #pos -> pos } asDictionary ].
+	^ {
+		  (#status -> #success).
+		  (#source -> tree formattedCode) } asDictionary
+]
+
+{ #category : #compile }
+LiterateServer class >> formatCode: source type: type [
+
+	| tree errBlock |
+	errBlock := [ :msg :pos |
+	            ^ {
+		              (#status -> #failed).
+		              (#msg -> msg).
+		              (#pos -> pos) } asDictionary ].
+	type = 'code'
+		ifTrue: [
+		tree := RBParser parseExpression: source onError: errBlock ]
+		ifFalse: [ tree := RBParser parseMethod: source onError: errBlock ].
 	^ {
 		  (#status -> #success).
 		  (#source -> tree formattedCode) } asDictionary
@@ -343,13 +369,38 @@ LiterateServer class >> start [
 					category: (req at: #category)
 					source: (req at: #source)
 					side: (req at: #side) ];
-		POST:
-			'/format/code' -> [ :req | self formatCode: (req at: #source) ];
-		POST: '/completion/code' -> [ :req |
+		POST: '/format/code'
+			-> [ :req |
+				self formatCode: (req at: #source) type: (req at: #type) ];
+		POST: '/completion/code'
+			-> [ :req |
+				self completion: (req at: #class) source: (req at: #source) ];
+		exception:
+			KeyNotFound -> (TeaResponse notFound body: 'No such method');
+		start.
+
+	Started := true
+]
+req at: #class)
+					method: (req at: #method)
+					side: (req at: #side) ];
+		POST: '/eval' -> [ :req | self evalCode: (req at: #code) ];
+		POST: '/compile/class' -> [ :req |
 				self
-					completion: (req at: #class)
+					compileClass: (NeoJSONReader fromString: (req at: #instance))
+					class: (NeoJSONReader fromString: (req at: #class)) ];
+		POST: '/compile/method' -> [ :req |
+				self
+					compileMethod: (req at: #class)
+					category: (req at: #category)
 					source: (req at: #source)
-					position: (req at: #position) asInteger ];
+					side: (req at: #side) ];
+		POST: '/format/code'
+			-> [ :req |
+				self formatCode: (req at: #source) type: (req at: #type) ];
+		POST: '/completion/code'
+			-> [ :req |
+				self completion: (req at: #class) source: (req at: #source) ];
 		exception:
 			KeyNotFound -> (TeaResponse notFound body: 'No such method');
 		start.
