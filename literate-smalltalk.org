@@ -34,67 +34,34 @@
   - [[#utils][utils]]
     - [[#asstringarray][asStringArray:]]
     - [[#elementsstring][elementsString]]
-- [[#namespace][namespace]]
-  - [[#namespaces][namespaces]]
+- [[#query][Query]]
+  - [[#namespace][namespace]]
+    - [[#namespaces][namespaces]]
+    - [[#classes-for-one-namespace][classes for one namespace]]
+  - [[#package][package]]
+    - [[#a-list-of-all-packages][a list of all packages]]
+    - [[#a-list-of-package-tags][a list of package tags.]]
+    - [[#a-list-of-classes-for-a-package-tag][a list of classes for a package tag]]
+    - [[#a-list-of-package-extensions][a list of package extensions.]]
+  - [[#class][class]]
     - [[#emacs][Emacs]]
-    - [[#pharo][pharo]]
-    - [[#cache-relationship-between-namespace-and-class][cache relationship between namespace and class]]
-    - [[#get-namespace-of-one-class][get namespace of one class]]
-  - [[#classes-for-one-namespace][classes for one namespace]]
+    - [[#pharo][Pharo]]
+- [[#compile][Compile]]
+  - [[#eval-code][eval code]]
     - [[#emacs-1][Emacs]]
     - [[#pharo-1][Pharo]]
-- [[#package][package]]
-  - [[#a-list-of-all-packages][a list of all packages]]
+  - [[#compile-1][compile]]
     - [[#emacs-2][Emacs]]
-    - [[#pharo-2][pharo]]
-  - [[#a-list-of-package-tags][a list of package tags.]]
-    - [[#emacs-3][Emacs]]
-    - [[#pharo-3][pharo]]
-  - [[#a-list-of-classes-for-a-package-tag][a list of classes for a package tag]]
-  - [[#a-list-of-package-extensions][a list of package extensions.]]
-    - [[#emacs-4][Emacs]]
-    - [[#pharo-4][pharo]]
-- [[#class][class]]
-  - [[#emacs-5][Emacs]]
-    - [[#print-out-class-definition][print out class definition]]
-    - [[#get-class-definition][get class definition]]
-    - [[#get-categories-of-one-class][get categories of one class]]
-    - [[#get-methods-of-one-category][get methods of one category]]
-    - [[#get-method-source][get method source]]
-  - [[#pharo-5][Pharo]]
-    - [[#class-definition][class definition]]
-    - [[#get-class-categories][get class categories]]
-    - [[#get-methods-in-one-class-category][get methods in one class category]]
-    - [[#get-method-source-1][get method source]]
-- [[#eval-code][eval code]]
-  - [[#emacs-6][Emacs]]
-  - [[#pharo-6][Pharo]]
-- [[#compile][compile]]
-  - [[#emacs-7][Emacs]]
-    - [[#parse-a-regex][parse a regex]]
-    - [[#how-to-parse-a-class-message][how to parse a class message]]
-    - [[#parse-class-definition][parse class definition]]
-    - [[#parse-subclass-definition][parse subclass definition]]
-    - [[#compile-class][compile class]]
-    - [[#compile-method][compile method]]
-    - [[#api-request-to-format-code][API request to format code]]
-    - [[#api-request-to-complete-code-at-position][API request to complete code at position]]
-    - [[#api-request-to-check-critiques-for-a-method][API request to check critiques for a method]]
-  - [[#command-to-code-format][command to code format]]
-  - [[#pharo-7][Pharo]]
-    - [[#compile-class-1][compile class]]
-    - [[#compile-method-1][compile method]]
-    - [[#format-code][format code]]
-    - [[#completion][completion]]
-    - [[#critiques][critiques]]
-- [[#code-navigation][Code navigation]]
-  - [[#search-a-pattern-in-a-buffer-and-return-its-position][search a pattern in a buffer and return its position]]
-  - [[#find-definition-of-class-in-org-files][find definition of class in org files]]
-  - [[#find-definition-of-a-class-method-in-org-files][find definition of a class method in org files]]
-  - [[#get-method-name-from-method-codes][get method name from method codes]]
-  - [[#basic-idea][basic idea]]
-  - [[#xref-interfaces][xref interfaces]]
-  - [[#implementation][implementation]]
+    - [[#command-to-code-format][command to code format]]
+    - [[#pharo-2][Pharo]]
+  - [[#code-navigation][Code navigation]]
+    - [[#search-a-pattern-in-a-buffer-and-return-its-position][search a pattern in a buffer and return its position]]
+    - [[#find-definition-of-class-in-org-files][find definition of class in org files]]
+    - [[#find-definition-of-a-class-method-in-org-files][find definition of a class method in org files]]
+    - [[#get-method-name-from-method-codes][get method name from method codes]]
+    - [[#basic-idea][basic idea]]
+    - [[#xref-interfaces][xref interfaces]]
+    - [[#implementation][implementation]]
 - [[#update-source][Update source]]
 - [[#imports-codes-to-org-file][imports codes to org file]]
   - [[#import-codes-of-namespaces-to-org-mode][Import codes of namespaces to org mode]]
@@ -447,10 +414,10 @@ elementsString: items
 
 	^ items inject: '' into: [ :acc :each | acc , each asString , ' ' ]
 #+END_SRC
-
-* namespace
-** namespaces
-*** Emacs
+* Query
+** namespace
+*** namespaces
+**** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-namespaces ()
   (cdr (assoc 'namespaces (literate-smalltalk-request "namespaces"))))
@@ -458,7 +425,7 @@ elementsString: items
 (defun literate-smalltalk-select-namespace ()
   (helm-select-list "Please select a namespace: " (literate-smalltalk-namespaces)))
 #+END_SRC
-*** pharo
+**** pharo
 #+BEGIN_SRC smalltalk :type method :name namespaces :side class :cat "accessing" :ns LiterateSmalltalk
 namespaces
 
@@ -467,7 +434,7 @@ namespaces
 		          each category asString ]) asSet asSortedCollection.
 	^ { (#namespaces -> names) } asDictionary
 #+END_SRC
-*** cache relationship between namespace and class
+**** cache relationship between namespace and class
 It is slow to build such indexed from remote pharo, let store it to a global variable and cache it to local file.
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-indexed-classes-file "~/.emacs.d/smalltalk.classes.txt")
@@ -496,7 +463,7 @@ It is slow to build such indexed from remote pharo, let store it to a global var
            do (setf (gethash (car items) literate-smalltalk-indexed-classes) (second items)))
   (message "restoring...done"))
 #+END_SRC
-*** get namespace of one class
+**** get namespace of one class
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-namespace-of-a-class (class)
   (when (= 0 (hash-table-count literate-smalltalk-indexed-classes))
@@ -510,8 +477,8 @@ It is slow to build such indexed from remote pharo, let store it to a global var
 #+END_SRC
 
 
-** classes for one namespace
-*** Emacs
+*** classes for one namespace
+**** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-classes (namespace)
   (mapcar 'identity
@@ -520,7 +487,7 @@ It is slow to build such indexed from remote pharo, let store it to a global var
 (defun literate-smalltalk-select-a-class (namespace)
   (helm-select-list "Please select a namespace: " (literate-smalltalk-classes namespace)))
 #+END_SRC
-*** Pharo
+**** Pharo
 #+BEGIN_SRC smalltalk :type method :name classes :side class :cat "accessing" :ns LiterateSmalltalk
 classes: namespace
 
@@ -531,10 +498,10 @@ classes: namespace
 		  asDictionary
 #+END_SRC
 
-* package
+** package
 This bases on [[https://github.com/pharo-project/pharo/blob/Pharo9.0/src/RPackage-Core/RPackage.class.st][RPakcage]].
-** a list of all packages
-*** Emacs
+*** a list of all packages
+**** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-packages ()
   (cdr (assoc 'packages (literate-smalltalk-request "packages"))))
@@ -542,13 +509,13 @@ This bases on [[https://github.com/pharo-project/pharo/blob/Pharo9.0/src/RPackag
 (defun literate-smalltalk-select-package ()
   (helm-select-list "Please select a package: " (literate-smalltalk-packages)))
 #+END_SRC
-*** pharo
+**** pharo
 #+BEGIN_SRC smalltalk :side class :cat "accessing"
 packages
 	^ { (#packages -> RPackageOrganizer default packageNames ) } asDictionary
 #+END_SRC
-** a list of package tags.
-*** Emacs
+*** a list of package tags.
+**** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-package-tags (package)
   (cdr (assoc 'tags (literate-smalltalk-request (concat "package/tags/" package)))))
@@ -556,7 +523,7 @@ packages
 (defun literate-smalltalk-select-package-tag (package)
   (helm-select-list "Please select a package tag: " (literate-smalltalk-package-tags package)))
 #+END_SRC
-*** pharo
+**** pharo
 #+BEGIN_SRC smalltalk :side class :cat "accessing"
 packageTags: packageName
 
@@ -576,9 +543,9 @@ packageTags: packageName
 
 	^ { (#tags -> tags) } asDictionary
 #+END_SRC
-** a list of classes for a package tag
-** a list of package extensions.
-*** Emacs
+*** a list of classes for a package tag
+*** a list of package extensions.
+**** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-package-extensions (package)
   (literate-smalltalk-request (concat "package/extensions/" package)))
@@ -587,7 +554,7 @@ packageTags: packageName
   (helm-select-list "Please select a package extension: " (literate-smalltalk-package-extensions package)))
 #+END_SRC
 
-*** pharo
+**** pharo
 #+BEGIN_SRC smalltalk :side class :cat "accessing"
 packageExtensions: packageName
 
@@ -611,9 +578,9 @@ packageExtensions: packageName
 			           (#class -> class asString) } asDictionary ].
 	^ methods
 #+END_SRC
-* class
-** Emacs
-*** print out class definition
+** class
+*** Emacs
+**** print out class definition
 #+BEGIN_SRC elisp
 (defconst literate-smalltalk-class-template
   '(("instanceVariableNames:" . instvars)
@@ -661,12 +628,12 @@ packageExtensions: packageName
           (newline)))
       (trim-string (buffer-string)))))
 #+END_SRC
-*** get class definition
+**** get class definition
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-class (class)
   (literate-smalltalk-class-definition-string (literate-smalltalk-request (concat "class/" class))))
 #+END_SRC
-*** get categories of one class
+**** get categories of one class
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-categories (class)
   (literate-smalltalk-request (concat "cats/" class)))
@@ -674,7 +641,7 @@ packageExtensions: packageName
 ;; (defun literate-smalltalk-select-a-category (namespace class)
 ;;   (helm-select-list "Please select a namespace: " (literate-smalltalk-categories namespace class)))
 #+END_SRC
-*** get methods of one category
+**** get methods of one category
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-category-methods (class category side)
   (mapcar 'identity
@@ -683,7 +650,7 @@ packageExtensions: packageName
                                                                      ("cat" . ,category)
                                                                      ("side" . ,side)))))))
 #+END_SRC
-*** get method source
+**** get method source
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-method-source (class method side)
   (unless class
@@ -697,8 +664,8 @@ packageExtensions: packageName
                                                ("side" . ,side)))))))
     (decode-coding-string source 'latin-1-mac)))
 #+END_SRC
-** Pharo
-*** class definition
+*** Pharo
+**** class definition
 #+BEGIN_SRC smalltalk :type method :name classDef: :side class :cat "accessing" :ns LiterateSmalltalk
 classDef: className
 
@@ -733,7 +700,7 @@ classDef: className
 	result at: #class put: classSide.
 	^ result
 #+END_SRC
-*** get class categories
+**** get class categories
 #+BEGIN_SRC smalltalk :type method :name classCats: :side class :cat "accessing" :ns LiterateSmalltalk
 classCats: className
 
@@ -753,7 +720,7 @@ classCats: className
 	result at: #class put: cats.
 	^ result
 #+END_SRC
-*** get methods in one class category
+**** get methods in one class category
 #+BEGIN_SRC smalltalk :type method :name catMethods: :side class :cat "accessing" :ns LiterateSmalltalk
 catMethods: className category: cat side: side
 
@@ -775,7 +742,7 @@ catMethods: className category: cat side: side
 		   asSortedCollection) } asDictionary
 #+END_SRC
 *
-*** get method source
+**** get method source
 #+BEGIN_SRC smalltalk :type method :name methodSource: :side class :cat "accessing" :ns LiterateSmalltalk
 methodSource: className name: name side: side
 
@@ -786,8 +753,9 @@ methodSource: className name: name side: side
 	^ { (#source -> method sourceCode) } asDictionary
 #+END_SRC
 
-* eval code
-** Emacs
+* Compile
+** eval code
+*** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-eval (code)
   (let ((resp (literate-smalltalk-request
@@ -798,7 +766,7 @@ methodSource: className name: name side: side
       (cdr (assoc 'result resp))
       (error "Failed to eval code!"))))
 #+END_SRC
-** Pharo
+*** Pharo
 #+BEGIN_SRC smalltalk :type method :name methodSource: :side class :cat "compile" :ns LiterateSmalltalk
 evalCode: code
 
@@ -813,9 +781,9 @@ evalCode: code
 		  (#status -> status) } asDictionary
 #+END_SRC
 
-* compile
-** Emacs
-*** parse a regex
+** compile
+*** Emacs
+**** parse a regex
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-regexp-tokens
     '((:Wd "\\([A-z]+[0-9]*\\)")
@@ -858,7 +826,7 @@ evalCode: code
       t)))
 #+END_SRC
 
-*** how to parse a class message
+**** how to parse a class message
 #+BEGIN_SRC elisp
 (cl-defun literate-smalltalk-parse-message (&key code pattern bindings to-split)
   (lexical-let ((data '()))
@@ -879,7 +847,7 @@ evalCode: code
         (progn (message "literate smalltalk: syntax error")
                nil)))))
 #+END_SRC
-*** parse class definition
+**** parse class definition
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-class-side-pattern
     '(:Wd :sp "class" :sp "instanceVariableNames:" :sp "'" :Ws "'"))
@@ -891,7 +859,7 @@ evalCode: code
    :to-split '(:instvars)))
 #+END_SRC
 
-*** parse subclass definition
+**** parse subclass definition
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-subclass-pattern
     '(:Wa :sp "subclass:" :sp "#" :Wd
@@ -908,7 +876,7 @@ evalCode: code
    :to-split '(:instvars :classvars)))
 #+END_SRC
 
-*** compile class
+**** compile class
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-compile-class (code)
   (let (comment instance-code class-code anchor-pos)
@@ -941,7 +909,7 @@ evalCode: code
                    :type "POST")))
         (message "Compile class %s." (cdr (assoc 'status resp)))))))
 #+END_SRC
-*** compile method
+**** compile method
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-compile-method (class side category code)
   (unless class
@@ -973,7 +941,7 @@ evalCode: code
         (switch-to-buffer critiques-buffer-name)))
     (message "Compile %s( %d critique)." result (length critiques))))
 #+END_SRC
-*** API request to format code
+**** API request to format code
 [[file:~/projects/smalltalk/pharo/src/Deprecated80/PluggableTextMorph.class.st::tree := RBParser parseMethod: source onError: \[ :msg :pos | ^ self \].][RBParser parseMethod]]
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-format-code (code)
@@ -988,7 +956,7 @@ evalCode: code
     (decode-coding-string (cdr (assoc 'source resp)) 'latin-1-mac)))
 
 #+END_SRC
-*** API request to complete code at position
+**** API request to complete code at position
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-request-complete-code (class source position)
   (literate-smalltalk-request
@@ -999,7 +967,7 @@ evalCode: code
    :type "POST"))
 #+END_SRC
 
-*** API request to check critiques for a method
+**** API request to check critiques for a method
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-request-check-method-critiques (class method side)
   (literate-smalltalk-request
@@ -1010,7 +978,7 @@ evalCode: code
              ("side" . ,side))))
 #+END_SRC
 
-** command to code format
+*** command to code format
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-code-format-current-code-block ()
   (interactive)
@@ -1032,8 +1000,8 @@ evalCode: code
 #+END_SRC
 
 
-** Pharo
-*** compile class
+*** Pharo
+**** compile class
 #+BEGIN_SRC smalltalk :type method :name compileMethod :side class :cat "compile" :ns LiterateSmalltalk
 compileClass: instDef class: classDef
 
@@ -1073,7 +1041,7 @@ compileClass: instDef class: classDef
 
 	^ { (#status -> status) } asDictionary
 #+END_SRC
-*** compile method
+**** compile method
 #+BEGIN_SRC smalltalk :side class :cat "compile" :ns LiterateSmalltalk
 compileMethod: className category: cat source: source side: side
 
@@ -1093,7 +1061,7 @@ compileMethod: className category: cat source: source side: side
 		  (#result -> result).
 		  (#critiques -> critiques) } asDictionary
 #+END_SRC
-*** format code
+**** format code
 #+BEGIN_SRC smalltalk :type method :side class :cat "compile"
 formatCode: source
 
@@ -1106,13 +1074,13 @@ formatCode: source
 		  (#status -> #success).
 		  (#source -> tree formattedCode) } asDictionary
 #+END_SRC
-*** completion
+**** completion
 #+BEGIN_SRC smalltalk :type method :side class :cat "compile"
 completion: class source: source position: position
   ^ nil
 #+END_SRC
 
-*** critiques
+**** critiques
 #+BEGIN_SRC smalltalk :type method :side class :cat "compile"
 critiques: className method: methodName side: side
 
@@ -1122,8 +1090,8 @@ critiques: className method: methodName side: side
 	critiques := (class >> methodName asSymbol) critiques.
 	^ critiques collect: [ :each | each asString ]
 #+END_SRC
-* Code navigation
-** search a pattern in a buffer and return its position
+** Code navigation
+*** search a pattern in a buffer and return its position
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-libraries-literate-path "~/Pharo/literate/")
 (defun literate-smalltalk-search-pattern (pattern)
@@ -1138,17 +1106,17 @@ critiques: className method: methodName side: side
                    (org-ensure-point-visible)
                    (return (list (current-buffer) (point)))))))))
 #+END_SRC
-** find definition of class in org files
+*** find definition of class in org files
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-find-class-definition (class-name)
   (literate-smalltalk-search-pattern (format "subclass: #%s" class-name)))
 #+END_SRC
-** find definition of a class method in org files
+*** find definition of a class method in org files
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-find-method-definition (class-name method-name)
   (literate-smalltalk-search-pattern (format ":class %s.*[\n\r]%s" class-name method-name)))
 #+END_SRC
-** get method name from method codes
+*** get method name from method codes
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-method-name-from-source (source)
   (let* ((first-line (first (split-string body "[\n\r]+" t nil)))
@@ -1161,7 +1129,7 @@ critiques: className method: methodName side: side
                 do (insert item))
         (buffer-string)))))
 #+END_SRC
-** basic idea
+*** basic idea
 We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref backend to search.
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-xref-backend ()
@@ -1172,7 +1140,7 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
   (setf xref-backend-functions '(literate-smalltalk-xref-backend)))
 (add-hook 'literate-smalltalk-code-mode-hook 'install-literate-smalltalk-xref-backend)
 #+END_SRC
-** xref interfaces
+*** xref interfaces
 #+BEGIN_SRC elisp
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql xref-st)))
   (literate-smalltalk-current-symbol-at-point))
@@ -1180,7 +1148,7 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
 (cl-defmethod xref-backend-definitions ((_backend (eql xref-st)) symbol)
   (literate-smalltalk--xref-find-definitions symbol))
 #+END_SRC
-** implementation
+*** implementation
 #+BEGIN_SRC elisp
 (defun literate-smalltalk--xref-find-definitions (name)
   (interactive)
