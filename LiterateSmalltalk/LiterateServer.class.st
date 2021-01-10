@@ -372,33 +372,7 @@ LiterateServer class >> start [
 		POST: '/format/code'
 			-> [ :req |
 				self formatCode: (req at: #source) type: (req at: #type) ];
-		POST: '/completion/code'
-			-> [ :req |
-				self completion: (req at: #class) source: (req at: #source) ];
-		exception:
-			KeyNotFound -> (TeaResponse notFound body: 'No such method');
-		start.
-
-	Started := true
-]
-req at: #class)
-					method: (req at: #method)
-					side: (req at: #side) ];
-		POST: '/eval' -> [ :req | self evalCode: (req at: #code) ];
-		POST: '/compile/class' -> [ :req |
-				self
-					compileClass: (NeoJSONReader fromString: (req at: #instance))
-					class: (NeoJSONReader fromString: (req at: #class)) ];
-		POST: '/compile/method' -> [ :req |
-				self
-					compileMethod: (req at: #class)
-					category: (req at: #category)
-					source: (req at: #source)
-					side: (req at: #side) ];
-		POST: '/format/code'
-			-> [ :req |
-				self formatCode: (req at: #source) type: (req at: #type) ];
-		POST: '/completion/code'
+		POST: '/completion/method'
 			-> [ :req |
 				self completion: (req at: #class) source: (req at: #source) ];
 		exception:
