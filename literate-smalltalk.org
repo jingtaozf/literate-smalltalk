@@ -79,6 +79,7 @@
 - [[#release-to-pharo][Release to pharo]]
 - [[#test][Test]]
   - [[#eval-codes][eval codes]]
+  - [[#ban-some-critiques-rules][ban some critiques rules]]
 
 * Introduction
 This is an attemp to write smalltalk codes in org mode,
@@ -938,6 +939,9 @@ evalCode: code
          (result (cdr (assoc 'result resp)))
          (critiques (cdr (assoc 'critiques resp)))
          (critiques-buffer-name "*smalltalk critiques*"))
+    (unless current-prefix-arg
+      (aif (get-buffer-window critiques-buffer-name)
+        (delete-window it)))
     (when (> (length critiques) 0)
       (unless current-prefix-arg
         (split-window))
@@ -947,7 +951,8 @@ evalCode: code
         (loop for critique across critiques
               do (insert critique)
                  (newline)))
-      (unless current-prefix-arg
+      (unless (or current-prefix-arg
+                  (get-buffer-window critiques-buffer-name))
         (switch-to-buffer critiques-buffer-name)))
     (if (= 0 (length critiques))
       (message "Compile %s." result)
@@ -1435,12 +1440,7 @@ Argument PARAMS: the input parameters."
          (results (literate-smalltalk-execute-code-block body params)))
     (unless (stringp results)
       (setf results (format "%s" results)))
-    (when results
-      (org-babel-result-cond result-params
-        results
-        (let ((tmp-file (org-babel-temp-file "q-")))
-          (with-temp-file tmp-file (insert results))
-          (org-babel-import-elisp-from-file tmp-file))))))
+    (decode-coding-string results 'latin-1-mac)))
 #+END_SRC
 *** implementation
 #+BEGIN_SRC elisp
@@ -1501,9 +1501,11 @@ Argument PARAMS: the input parameters."
 * Release to pharo
 #+BEGIN_SRC smalltalk :type code
 working := FileSystem disk workingDirectory.
-(working
- /
-	 'projects/literate-smalltalk/LiterateSmalltalk/LiterateServer.class.st')
+file := working
+        /
+        'projects/literate-smalltalk/LiterateSmalltalk/LiterateServer.class.st'.
+file exists ifTrue: [ file delete ].
+file
 	writeStreamDo: [ :s | TonelWriter exportClass: LiterateServer on: s ];
 	yourself
 #+END_SRC
@@ -1516,4 +1518,8 @@ working := FileSystem disk workingDirectory.
 y := Dictionary new.
 y at: 'page' put: '2'.
 y
+#+END_SRC
+** ban some critiques rules
+#+BEGIN_SRC smalltalk :type code
+ReBadMessageRule enabled: false.
 #+END_SRC
