@@ -949,7 +949,9 @@ evalCode: code
                  (newline)))
       (unless current-prefix-arg
         (switch-to-buffer critiques-buffer-name)))
-    (message "Compile %s( %d critique)." result (length critiques))))
+    (if (= 0 (length critiques))
+      (message "Compile %s." result)
+      (message "Compile %s( %d critique)." result (length critiques)))))
 #+END_SRC
 **** API request to format code
 [[file:~/projects/smalltalk/pharo/src/Deprecated80/PluggableTextMorph.class.st::tree := RBParser parseMethod: source onError: \[ :msg :pos | ^ self \].][RBParser parseMethod]]
