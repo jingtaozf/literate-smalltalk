@@ -775,7 +775,7 @@ methodSource: className name: name side: side
                                      :params `(("code" . ,code)))))
     (if (string= "success" (cdr (assoc 'status resp)))
       (cdr (assoc 'result resp))
-      (error "Failed to eval code!"))))
+      (error "Failed to eval code:'%s'!" (cdr (assoc 'result resp))))))
 #+END_SRC
 *** Pharo
 #+BEGIN_SRC smalltalk :type method :name methodSource: :side class :cat "compile" :ns LiterateSmalltalk
@@ -786,7 +786,7 @@ evalCode: code
 	result := [
 	          OpalCompiler new
 		          source: code;
-		          evaluate ] on: Error do: [ result := #failed ].
+		          evaluate ] on: Error do: [ status := #failed ].
 	^ {
 		  (#result -> result asString).
 		  (#status -> status) } asDictionary

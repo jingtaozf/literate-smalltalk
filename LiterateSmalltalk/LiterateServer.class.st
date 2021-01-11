@@ -200,7 +200,7 @@ LiterateServer class >> evalCode: code [
 	result := [
 	          OpalCompiler new
 		          source: code;
-		          evaluate ] on: Error do: [ result := #failed ].
+		          evaluate ] on: Error do: [ status := #failed ].
 	^ {
 		  (#result -> result asString).
 		  (#status -> status) } asDictionary
