@@ -772,7 +772,7 @@ methodSource: className name: name side: side
   (let ((resp (literate-smalltalk-request
                                      "eval"
                                      :type "POST"
-                                     :params `(("code" . ,code)))))
+                                     :data `(("code" . ,code)))))
     (if (string= "success" (cdr (assoc 'status resp)))
       (cdr (assoc 'result resp))
       (error "Failed to eval code:'%s'!" (cdr (assoc 'result resp))))))
@@ -915,7 +915,7 @@ evalCode: code
       (push (cons "comment" comment) instance-data)
       (let ((resp (literate-smalltalk-request
                    "compile/class"
-                   :params `(("instance" . ,(json-encode instance-data))
+                   :data `(("instance" . ,(json-encode instance-data))
                              ("class" . ,(json-encode class-data)))
                    :type "POST")))
         (message "Compile class %s." (cdr (assoc 'status resp)))))))
@@ -931,7 +931,7 @@ evalCode: code
     (error "Please specifiy the category of current method!"))
   (let* ((resp (literate-smalltalk-request
                 "compile/method"
-                :params `(("class" . ,class)
+                :data `(("class" . ,class)
                           ("category" . ,category)
                           ("source" . ,code)
                           ("side" . ,(literate-smalltalk-side-sym-as-param side)))
@@ -961,13 +961,14 @@ evalCode: code
 **** API request to format code
 [[file:~/projects/smalltalk/pharo/src/Deprecated80/PluggableTextMorph.class.st::tree := RBParser parseMethod: source onError: \[ :msg :pos | ^ self \].][RBParser parseMethod]]
 #+BEGIN_SRC elisp
-(defun literate-smalltalk-format-code (code type)
+(defun literate-smalltalk-format-code (code-start-point code type)
   (let ((resp (literate-smalltalk-request
                "format/code"
-               :params `(("source" . ,(encode-coding-string code 'latin-1-mac))
+               :data `(("source" . ,(encode-coding-string code 'latin-1-mac))
                          ("type" . ,type))
                :type "POST")))
     (unless (string= "success" (cdr (assoc 'status resp)))
+      (goto-char (+ code-start-point (cdr (assoc 'pos resp))))
       (error "Failed to format code at %s:%s!"
              (cdr (assoc 'pos resp))
              (cdr (assoc 'msg resp))))
@@ -979,7 +980,7 @@ evalCode: code
 (defun literate-smalltalk-request-complete-code (class source)
   (literate-smalltalk-request
    "completion/method"
-   :params `(("class" . ,class)
+   :data `(("class" . ,class)
              ("source" . ,(encode-coding-string source 'latin-1-mac)))
    :type "POST"))
 #+END_SRC
@@ -1002,10 +1003,14 @@ evalCode: code
   (let* ((context-info (second (org-element-context)))
          (block-arguments (third (org-babel-get-src-block-info)))
          (code (plist-get context-info :value))
+         (code-start-point (save-excursion
+                             (goto-char (plist-get context-info :begin))
+                             (forward-line)
+                             (line-beginning-position)))
          (type (aif (cdr (assoc :type block-arguments))
                  it
                  "method"))
-         (formatted-code (literate-smalltalk-format-code code type)))
+         (formatted-code (literate-smalltalk-format-code code-start-point code type)))
     (replace-region-contents
      (plist-get context-info :begin)
      (plist-get context-info :end)
