@@ -75,6 +75,7 @@
     - [[#babel-entry][babel entry]]
     - [[#implementation-1][implementation]]
   - [[#execute-all-source-codes-in-current-header][execute all source codes in current header]]
+  - [[#execute-source-codes-in-current-code-block][execute source codes in current code block]]
 - [[#shortcut][shortcut]]
 - [[#release-to-pharo][Release to pharo]]
 - [[#test][Test]]
@@ -1490,13 +1491,27 @@ Argument PARAMS: the input parameters."
                                                                    (line-end-position)))
         (org-babel-execute-src-block-maybe)))))
 #+END_SRC
+** execute source codes in current code block
+We have to switch back to org buffer, otherwise =org-babel-execute-src-block-maybe= will report a message and
+override our own compilation report.
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-execute-current-code-block ()
+  (interactive)
+  (let* ((element (org-element-at-point))
+         (info (second element))
+         (begin (plist-get info :begin)))
+    (save-excursion
+      (goto-char begin)
+      (pm-set-buffer (point))
+      (org-babel-execute-src-block-maybe))))
+#+END_SRC
 
 * shortcut
 #+BEGIN_SRC elisp
 (define-quick-choice (literate-smalltalk-code-mode)
     ("package of class" literate-smalltalk-namespace-of-current-symbol)
-  ("execute codes" org-babel-execute-src-block-maybe)
-  ("compile codes" org-babel-execute-src-block-maybe)
+  ("execute codes" literate-smalltalk-execute-current-code-block)
+  ("compile codes" literate-smalltalk-execute-current-code-block)
   ("Compile codes in current header" literate-smalltalk-execute-current-header)
   ("format code" literate-smalltalk-code-format-current-code-block)
   ("update codes" literate-smalltalk-update-source)
