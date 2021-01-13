@@ -1057,6 +1057,7 @@ evalCode: code
     (prefix (literate-smalltalk-current-symbol-at-point))
     (candidates (literate-smalltalk-completion-candidates))))
 (define-key literate-smalltalk-code-mode-map [(meta ?/)] 'company-literate-smalltalk-code)
+(define-key literate-smalltalk-code-mode-map (kbd "TAB") 'company-literate-smalltalk-code)
 #+END_SRC
 
 *** Pharo
