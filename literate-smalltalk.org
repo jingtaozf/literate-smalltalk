@@ -969,7 +969,8 @@ evalCode: code
                          ("type" . ,type))
                :type "POST")))
     (unless (string= "success" (cdr (assoc 'status resp)))
-      (goto-char (+ code-start-point (cdr (assoc 'pos resp))))
+      (when (fixnump (cdr (assoc 'pos resp)))
+        (goto-char (+ code-start-point (cdr (assoc 'pos resp)))))
       (error "Failed to format code at %s:%s!"
              (cdr (assoc 'pos resp))
              (cdr (assoc 'msg resp))))
