@@ -154,9 +154,8 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 	critiques := ''.
 	[
 	selector := class compile: source classified: cat.
-	critiques := (class >> selector) critiques collect: [ :each |
-		             each asString ] ]
-		on: Error
+	critiques := (class >> selector) critiques collect: [ :each | each asString ] ]
+		on: SyntaxErrorNotification, RuntimeSyntaxError
 		do: [ :ex | result := ex asString ].
 	^ {
 		  (#result -> result).
