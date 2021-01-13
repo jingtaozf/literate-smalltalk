@@ -787,12 +787,15 @@ evalCode: code
 	result := [
 	          OpalCompiler new
 		          source: code;
-		          evaluate ] on: Error do: [ status := #failed ].
+		          evaluate ]
+		          on: Exception
+		          do: [ :ex |
+			          status := #failed.
+			          result := ex ].
 	^ {
 		  (#result -> result asString).
 		  (#status -> status) } asDictionary
 #+END_SRC
-
 ** compile
 *** Emacs
 **** parse a regex
@@ -1521,6 +1524,7 @@ override our own compilation report.
 
 * Release to pharo
 #+BEGIN_SRC smalltalk :type code
+| working file |
 working := FileSystem disk workingDirectory.
 file := working
         /
