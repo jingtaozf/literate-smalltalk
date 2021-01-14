@@ -338,13 +338,13 @@ LiterateServer class
 #+END_SRC
 ** the Server accessor
 *** reader
-#+BEGIN_SRC smalltalk :type method :name server :side class :cat "accessing" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "accessing"
 server
 	"returns teapot instance"
 	^ Server
 #+END_SRC
 *** writer
-#+BEGIN_SRC smalltalk :type method :name server: :side class :cat "accessing" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "accessing"
 server: server
 	"sets teapot for class"
 	Server := server.
@@ -415,13 +415,13 @@ Many reflection methods return different results in various dialects.
 same method returns an Array of Strings in Squeak
 
 This kludge works as an abstraction over it all
-#+BEGIN_SRC smalltalk :side class :cat "utilities" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "utilities"
 asStringArray: items
 
 	^ (items collect: [ :each | each asString ]) asArray
 #+END_SRC
 *** elementsString
-#+BEGIN_SRC smalltalk :type method :side class :cat "utilities" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "utilities"
 elementsString: items
 
 	^ items inject: '' into: [ :acc :each | acc , each asString , ' ' ]
@@ -438,7 +438,7 @@ elementsString: items
   (helm-select-list "Please select a namespace: " (literate-smalltalk-namespaces)))
 #+END_SRC
 **** pharo
-#+BEGIN_SRC smalltalk :type method :name namespaces :side class :cat "accessing" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "accessing"
 namespaces
 
 	| names |
@@ -500,7 +500,7 @@ It is slow to build such indexed from remote pharo, let store it to a global var
   (helm-select-list "Please select a namespace: " (literate-smalltalk-classes namespace)))
 #+END_SRC
 **** Pharo
-#+BEGIN_SRC smalltalk :type method :name classes :side class :cat "accessing" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "accessing"
 classes: namespace
 
 	| resultList |
@@ -678,7 +678,7 @@ packageExtensions: packageName
 #+END_SRC
 *** Pharo
 **** class definition
-#+BEGIN_SRC smalltalk :type method :name classDef: :side class :cat "accessing" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "accessing"
 classDef: className
 
 	| class instanceSide classSide result |
@@ -713,7 +713,7 @@ classDef: className
 	^ result
 #+END_SRC
 **** get class categories
-#+BEGIN_SRC smalltalk :type method :name classCats: :side class :cat "accessing" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "accessing"
 classCats: className
 
 	| class cats result |
@@ -733,7 +733,7 @@ classCats: className
 	^ result
 #+END_SRC
 **** get methods in one class category
-#+BEGIN_SRC smalltalk :type method :name catMethods: :side class :cat "accessing" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "accessing"
 catMethods: className category: cat side: side
 
 	| class methods allMethods |
@@ -755,7 +755,7 @@ catMethods: className category: cat side: side
 #+END_SRC
 *
 **** get method source
-#+BEGIN_SRC smalltalk :type method :name methodSource: :side class :cat "accessing" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "accessing"
 methodSource: className name: name side: side
 
 	| class method |
@@ -779,7 +779,7 @@ methodSource: className name: name side: side
       (error "Failed to eval code:'%s'!" (cdr (assoc 'result resp))))))
 #+END_SRC
 *** Pharo
-#+BEGIN_SRC smalltalk :type method :name methodSource: :side class :cat "compile" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "compile"
 evalCode: code
 
 	| status result |
@@ -1071,7 +1071,7 @@ evalCode: code
 
 *** Pharo
 **** compile class
-#+BEGIN_SRC smalltalk :type method :name compileMethod :side class :cat "compile" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "compile" :ns LiterateSmalltalk
 compileClass: instDef class: classDef
 
 	| parent class status instvars classvars |
@@ -1132,7 +1132,7 @@ compileMethod: className category: cat source: source side: side
 		  (#critiques -> critiques) } asDictionary
 #+END_SRC
 **** format code
-#+BEGIN_SRC smalltalk :type method :side class :cat "compile"
+#+BEGIN_SRC smalltalk :side class
 formatCode: source type: type
 
 	| tree errBlock |
@@ -1150,7 +1150,7 @@ formatCode: source type: type
 		  (#source -> tree formattedCode) } asDictionary
 #+END_SRC
 **** completion
-#+BEGIN_SRC smalltalk :type method :side class :cat "compile"
+#+BEGIN_SRC smalltalk :side class :cat "compile"
 completion: className source: source
 
 	| class context |
@@ -1163,7 +1163,7 @@ completion: className source: source
 	^ context entries collect: [ :each | each contents ]
 #+END_SRC
 **** critiques
-#+BEGIN_SRC smalltalk :type method :side class :cat "compile"
+#+BEGIN_SRC smalltalk :side class :cat "compile"
 critiques: className method: methodName side: side
 
 	| class critiques |
