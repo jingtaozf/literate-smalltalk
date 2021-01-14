@@ -951,6 +951,10 @@ evalCode: code
       (with-current-buffer (get-buffer-create critiques-buffer-name)
         (unless current-prefix-arg
           (delete-region (point-min) (point-max)))
+        (insert "--------------------------------------")
+        (newline)
+        (insert "When compiling '" class "' " (literate-smalltalk-side-sym-as-param side) " method '" (cdr (assoc 'selector resp)) "':")
+        (newline)
         (loop for critique across critiques
               do (insert critique)
                  (newline)))
@@ -1114,13 +1118,15 @@ compileMethod: className category: cat source: source side: side
 
 	result := #success.
 	critiques := ''.
+	selector := ''.
 	[
 	selector := class compile: source classified: cat.
 	critiques := (class >> selector) critiques collect: [ :each | each asString ] ]
-		on: SyntaxErrorNotification, RuntimeSyntaxError
+		on: SyntaxErrorNotification , RuntimeSyntaxError
 		do: [ :ex | result := ex asString ].
 	^ {
 		  (#result -> result).
+		  (#selector -> selector).
 		  (#critiques -> critiques) } asDictionary
 #+END_SRC
 **** format code
@@ -1188,7 +1194,24 @@ critiques: className method: methodName side: side
 *** find definition of a class method in org files
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-find-method-definition (class-name method-name)
-  (literate-smalltalk-search-pattern (format ":class %s.*[\n\r]%s" class-name method-name)))
+  (or (literate-smalltalk-search-pattern (format ":class %s.*[\n\r]%s" class-name method-name))
+      (loop for buf in (cons (current-buffer)
+                             (mapcar 'find-file-noselect (directory-files literate-smalltalk-libraries-literate-path t ".org$")))
+            do (with-current-buffer buf
+                 (save-excursion
+                   (goto-char (point-min))
+                   (pm-set-buffer (point))
+                   (let (start end)
+                     (if (re-search-forward (concat "#\\+PROPERTY:\\s+literate-class\\s+" class-name) nil t)
+                       (setf start (point-min)
+                             end (point-max))
+                       (when (re-search-forward (format "^:literate-class:\s+%s" class-name) nil t)
+                         (re-search-backward "^\\*")
+                         (let ((block-info (second (org-element-context))))
+                           (when (re-search-forward (concat "^\s*" method-name) (plist-get block-info :end) t)
+                             (goto-char (line-beginning-position))
+                             (org-ensure-point-visible)
+                             (return (list (current-buffer) (point)))))))))))))
 #+END_SRC
 *** get method name from method codes
 #+BEGIN_SRC elisp
