@@ -1071,7 +1071,7 @@ evalCode: code
 
 *** Pharo
 **** compile class
-#+BEGIN_SRC smalltalk :side class :cat "compile" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "compile"
 compileClass: instDef class: classDef
 
 	| parent class status instvars classvars |
@@ -1111,7 +1111,7 @@ compileClass: instDef class: classDef
 	^ { (#status -> status) } asDictionary
 #+END_SRC
 **** compile method
-#+BEGIN_SRC smalltalk :side class :cat "compile" :ns LiterateSmalltalk
+#+BEGIN_SRC smalltalk :side class :cat "compile"
 compileMethod: className category: cat source: source side: side
 
 	| class result selector critiques |
