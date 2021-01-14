@@ -7,7 +7,7 @@ Class {
 	#classVars : [
 		'Server',
 		'Started',
-		'lastEvalResult'
+		'evalResults'
 	],
 	#category : #LiterateSmalltalk
 }
@@ -153,14 +153,15 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 
 	result := #success.
 	critiques := ''.
+	selector := ''.
 	[
 	selector := class compile: source classified: cat.
-	critiques := (class >> selector) critiques collect: [ :each |
-		             each asString ] ]
-		on: Error
+	critiques := (class >> selector) critiques collect: [ :each | each asString ] ]
+		on: SyntaxErrorNotification , RuntimeSyntaxError
 		do: [ :ex | result := ex asString ].
 	^ {
 		  (#result -> result).
+		  (#selector -> selector).
 		  (#critiques -> critiques) } asDictionary
 ]
 
@@ -198,16 +199,17 @@ LiterateServer class >> evalCode: code [
 
 	| status result |
 	status := #success.
-	lastEvalResult := [
-	                  OpalCompiler new
-		                  source: code;
-		                  evaluate ]
-		                  on: Exception
-		                  do: [ :ex |
-			                  status := #failed.
-			                  result := ex ].
+	result := [
+	          OpalCompiler new
+		          source: code;
+		          evaluate ]
+		          on: Exception
+		          do: [ :ex |
+			          status := #failed.
+			          result := ex ].
+	evalResults add: result.
 	^ {
-		  (#result -> lastEvalResult asString).
+		  (#result -> result asString).
 		  (#status -> status) } asDictionary
 ]
 
@@ -330,6 +332,7 @@ LiterateServer class >> start [
 	| teapot |
 	"extra check so that we don't close a Pool which wasn't open"
 	Started ifNotNil: [ Server stop ].
+	evalResults := OrderedCollection new.
 	teapot := Teapot configure: {
 			          (#defaultOutput -> #json).
 			          (#port -> 9092).

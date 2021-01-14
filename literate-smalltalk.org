@@ -330,7 +330,7 @@ The REST Server for LiterateSmalltalk.
 "
 Object subclass: #LiterateServer
     instanceVariableNames: ''
-    classVariableNames: 'Server Started lastEvalResult'
+    classVariableNames: 'Server Started evalResults'
     package: 'LiterateSmalltalk'
 ----------------------
 LiterateServer class
@@ -358,6 +358,7 @@ start
 	| teapot |
 	"extra check so that we don't close a Pool which wasn't open"
 	Started ifNotNil: [ Server stop ].
+	evalResults := OrderedCollection new.
 	teapot := Teapot configure: {
 			          (#defaultOutput -> #json).
 			          (#port -> 9092).
@@ -783,16 +784,17 @@ evalCode: code
 
 	| status result |
 	status := #success.
-	lastEvalResult := [
-	                  OpalCompiler new
-		                  source: code;
-		                  evaluate ]
-		                  on: Exception
-		                  do: [ :ex |
-			                  status := #failed.
-			                  result := ex ].
+	result := [
+	          OpalCompiler new
+		          source: code;
+		          evaluate ]
+		          on: Exception
+		          do: [ :ex |
+			          status := #failed.
+			          result := ex ].
+	evalResults add: result.
 	^ {
-		  (#result -> lastEvalResult asString).
+		  (#result -> result asString).
 		  (#status -> status) } asDictionary
 #+END_SRC
 ** compile
