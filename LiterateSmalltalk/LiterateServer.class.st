@@ -147,15 +147,15 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 	critiques := ''.
 	selector := ''.
 	message := ''.
-	[ 
+	[
 	selector := class compile: source classified: cat.
 	critiques := (class >> selector) critiques collect: [ :each | each asString ] ]
 		on: SyntaxErrorNotification , RuntimeSyntaxError , OCAbortCompilation , OCSemanticError
 			, OCSemanticWarning , ReparseAfterSourceEditing
-		do: [ :ex | 
+		do: [ :ex |
 			message := ex asString.
 			status := ex className ].
-	^ { 
+	^ {
 		  (#status -> status).
 		  (#message -> message).
 		  (#selector -> selector).
@@ -209,7 +209,7 @@ LiterateServer class >> evalCode: code [
 			          result := ex ].
 	evalResults add: result.
 	^ {
-		  (#result -> result asString).
+		  (#message -> result asString).
 		  (#status -> status) } asDictionary
 ]
 
@@ -247,9 +247,10 @@ LiterateServer class >> formatCode: source type: type [
 LiterateServer class >> methodSource: className name: methodName side: side [
 
 	| class method |
+	class := Smalltalk at: className asSymbol.
 	class := side = #class
-		         ifTrue: [ Smalltalk at: className asSymbol class ]
-		         ifFalse: [ Smalltalk at: className asSymbol ].
+		         ifTrue: [ class class ]
+		         ifFalse: [ class ].
 	method := class methodDictionary at: methodName asSymbol.
 	^ {
 		  (#status -> #success).

@@ -277,9 +277,12 @@ text-mode "Literate Smalltalk code"
         :complete (cl-function
                    (lambda (&key response &allow-other-keys)
                      (setf literate-smalltalk-last-response response)
+                     (setf resp (request-response-data response))
                      (case (request-response-status-code response)
                        ((200 500) (setf resp (request-response-data response)))
                        (t (error "Failed to request to remote pharo:%s" response))))))
+    (unless (string= "success" (cdr (assoc 'status resp)))
+      (error "Pharo failed:%s" (cdr (assoc 'message resp))))
     resp))
 #+END_SRC
 * baseline for pharo
@@ -662,11 +665,12 @@ packageExtensions: packageName
     (error "Please specifiy the class of current method!"))
   (unless side
     (error "Please specifiy the side of current method!"))
-  (let ((source (cdr (assoc 'source (literate-smalltalk-request
-                                     "method/source"
-                                     :params `(("class" . ,class)
-                                               ("name" . ,method)
-                                               ("side" . ,side)))))))
+  (let* ((resp (literate-smalltalk-request
+                "method/source"
+                :params `(("class" . ,class)
+                          ("name" . ,method)
+                          ("side" . ,side))))
+         (source (cdr (assoc 'source resp))))
     (decode-coding-string source 'latin-1-mac)))
 #+END_SRC
 *** Pharo
@@ -743,9 +747,10 @@ catMethods: className category: cat side: side
 methodSource: className name: methodName side: side
 
 	| class method |
+	class := Smalltalk at: className asSymbol.
 	class := side = #class
-		         ifTrue: [ Smalltalk at: className asSymbol class ]
-		         ifFalse: [ Smalltalk at: className asSymbol ].
+		         ifTrue: [ class class ]
+		         ifFalse: [ class ].
 	method := class methodDictionary at: methodName asSymbol.
 	^ {
 		  (#status -> #success).
@@ -761,8 +766,8 @@ methodSource: className name: methodName side: side
                                      :type "POST"
                                      :data `(("code" . ,code)))))
     (if (string= "success" (cdr (assoc 'status resp)))
-      (cdr (assoc 'result resp))
-      (error "Failed to eval code:'%s'!" (cdr (assoc 'result resp))))))
+      (cdr (assoc 'message resp))
+      (error "Failed to eval code:'%s'!" (cdr (assoc 'message resp))))))
 #+END_SRC
 *** Pharo
 #+BEGIN_SRC smalltalk :side class :cat "compile"
@@ -780,7 +785,7 @@ evalCode: code
 			          result := ex ].
 	evalResults add: result.
 	^ {
-		  (#result -> result asString).
+		  (#message -> result asString).
 		  (#status -> status) } asDictionary
 #+END_SRC
 ** compile
