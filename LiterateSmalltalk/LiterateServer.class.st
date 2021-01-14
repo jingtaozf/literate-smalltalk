@@ -25,18 +25,15 @@ LiterateServer class >> catMethods: className category: cat side: side [
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
-	allMethods := class methodDictionary
-		              ifNil: [ #(  ) ]
-		              ifNotNil: [ :x | x associations ].
+	allMethods := class methodDictionary ifNil: [ #(  ) ] ifNotNil: [ :x | x associations ].
 
 	methods := cat = '*'
 		           ifTrue: [ allMethods ]
-		           ifFalse: [
-		           allMethods select: [ :e | e value category = cat ] ].
-	^ { (#methods
-	   ->
-	   (methods collect: [ :each | each key asString ])
-		   asSortedCollection) } asDictionary
+		           ifFalse: [ allMethods select: [ :e | e value category = cat ] ].
+	^ {
+		  (#status -> #success).
+		  (#methods -> (methods collect: [ :each | each key asString ]) asSortedCollection) }
+		  asDictionary
 ]
 
 { #category : #accessing }
@@ -46,17 +43,17 @@ LiterateServer class >> classCats: className [
 	result := Dictionary new.
 	class := Smalltalk at: className asSymbol.
 	cats := Set new.
-	class methodDictionary ifNotNil: [ :d |
-		d values do: [ :each | cats add: each category ] ].
+	class methodDictionary ifNotNil: [ :d | d valuesDo: [ :each | cats add: each category ] ].
 
 	result at: #instance put: cats.
 
 	class := class class.
 	cats := Set new.
-	class methodDictionary ifNotNil: [ :d |
-		d values do: [ :each | cats add: each category ] ].
+	class methodDictionary ifNotNil: [ :d | d valuesDo: [ :each | cats add: each category ] ].
 	result at: #class put: cats.
-	^ result
+	^ {
+		  (#status -> #success).
+		  (#result -> result) } asDictionary
 ]
 
 { #category : #accessing }
@@ -67,15 +64,9 @@ LiterateServer class >> classDef: className [
 	instanceSide := Dictionary new.
 	instanceSide at: #class put: className.
 	instanceSide at: #superclass put: class superclass printString.
-	instanceSide
-		at: #instvars
-		put: (self asStringArray: class instVarNames).
-	instanceSide
-		at: #classvars
-		put: (self asStringArray: class classVarNames).
-	instanceSide
-		at: #poolvars
-		put: (self asStringArray: class sharedPools).
+	instanceSide at: #instvars put: (self asStringArray: class instVarNames).
+	instanceSide at: #classvars put: (self asStringArray: class classVarNames).
+	instanceSide at: #poolvars put: (self asStringArray: class sharedPools).
 	instanceSide at: #package put: class category.
 	instanceSide at: #comment put: class comment.
 
@@ -84,14 +75,14 @@ LiterateServer class >> classDef: className [
 	classSide at: #class put: className.
 	classSide at: #superclass put: class superclass printString.
 	classSide at: #instvars put: (self asStringArray: class instVarNames).
-	classSide
-		at: #classvars
-		put: (self asStringArray: class classVarNames).
+	classSide at: #classvars put: (self asStringArray: class classVarNames).
 	classSide at: #poolvars put: (self asStringArray: class sharedPools).
 	result := Dictionary new.
 	result at: #instance put: instanceSide.
 	result at: #class put: classSide.
-	^ result
+	^ {
+		  (#status -> #success).
+		  (#result -> result) } asDictionary
 ]
 
 { #category : #accessing }
@@ -100,8 +91,9 @@ LiterateServer class >> classes: namespace [
 	| resultList |
 	resultList := Smalltalk globals allClasses select: [ :each |
 		              each category asString = namespace ].
-	^ { (#classes -> (resultList collect: [ :each | each name asString ])) }
-		  asDictionary
+	^ {
+		  (#status -> #success).
+		  #classes -> (resultList collect: [ :each | each name asString ])  } asDictionary
 ]
 
 { #category : #compile }
@@ -147,20 +139,25 @@ LiterateServer class >> compileClass: instDef class: classDef [
 { #category : #compile }
 LiterateServer class >> compileMethod: className category: cat source: source side: side [
 
-	| class result selector critiques |
+	| class status selector critiques message |
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
-	result := #success.
+	status := #success.
 	critiques := ''.
 	selector := ''.
-	[
+	message := ''.
+	[ 
 	selector := class compile: source classified: cat.
 	critiques := (class >> selector) critiques collect: [ :each | each asString ] ]
-		on: SyntaxErrorNotification , RuntimeSyntaxError
-		do: [ :ex | result := ex asString ].
-	^ {
-		  (#result -> result).
+		on: SyntaxErrorNotification , RuntimeSyntaxError , OCAbortCompilation , OCSemanticError
+			, OCSemanticWarning , ReparseAfterSourceEditing
+		do: [ :ex | 
+			message := ex asString.
+			status := ex className ].
+	^ { 
+		  (#status -> status).
+		  (#message -> message).
 		  (#selector -> selector).
 		  (#critiques -> critiques) } asDictionary
 ]
@@ -168,14 +165,17 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 { #category : #compile }
 LiterateServer class >> completion: className source: source [
 
-	| class context |
+	| class context entities |
 	class := Smalltalk at: className asSymbol.
 	context := CompletionContext
 		           engine: CompletionEngine new
 		           class: class
 		           source: source
 		           position: source size.
-	^ context entries collect: [ :each | each contents ]
+	entities := context entries collect: [ :each | each contents ].
+	^ {
+		  (#status -> #success).
+		  (#entities -> entities) } asDictionary
 ]
 
 { #category : #compile }
@@ -235,23 +235,25 @@ LiterateServer class >> formatCode: source type: type [
 		              (#status -> #failed).
 		              (#msg -> msg).
 		              (#pos -> pos) } asDictionary ].
-	type = 'code'
-		ifTrue: [
-		tree := RBParser parseExpression: source onError: errBlock ]
-		ifFalse: [ tree := RBParser parseMethod: source onError: errBlock ].
+	tree := type = 'code'
+		        ifTrue: [ RBParser parseExpression: source onError: errBlock ]
+		        ifFalse: [ RBParser parseMethod: source onError: errBlock ].
 	^ {
 		  (#status -> #success).
 		  (#source -> tree formattedCode) } asDictionary
 ]
 
 { #category : #accessing }
-LiterateServer class >> methodSource: className name: name side: side [
+LiterateServer class >> methodSource: className name: methodName side: side [
 
 	| class method |
-	class := Smalltalk at: className asSymbol.
-	side = #class ifTrue: [ class := class class ].
-	method := class methodDictionary at: name asSymbol.
-	^ { (#source -> method sourceCode) } asDictionary
+	class := side = #class
+		         ifTrue: [ Smalltalk at: className asSymbol class ]
+		         ifFalse: [ Smalltalk at: className asSymbol ].
+	method := class methodDictionary at: methodName asSymbol.
+	^ {
+		  (#status -> #success).
+		  (#source -> method sourceCode) } asDictionary
 ]
 
 { #category : #accessing }
@@ -260,7 +262,7 @@ LiterateServer class >> namespaces [
 	| names |
 	names := (Smalltalk globals allClasses collect: [ :each |
 		          each category asString ]) asSet asSortedCollection.
-	^ { (#namespaces -> names) } asDictionary
+	^ { (#status -> #success). (#namespaces -> names) } asDictionary
 ]
 
 { #category : #accessing }
@@ -284,7 +286,9 @@ LiterateServer class >> packageExtensions: packageName [
 			           (#side -> side).
 			           (#code -> each sourceCode).
 			           (#class -> class asString) } asDictionary ].
-	^ methods
+	^ {
+		  (#status -> #success).
+		  (#methods -> methods) } asDictionary
 ]
 
 { #category : #accessing }
@@ -294,22 +298,22 @@ LiterateServer class >> packageTags: packageName [
 	package := RPackageOrganizer default
 		           packageNamed: packageName asSymbol
 		           ifAbsent: RPackage new.
-	tags := (package classTags collect: [ :each |
+	tags := (package classTags collect: [ :tag |
 		         {
-			         (#name -> each name asString).
-			         (#classes
-			          ->
-			          (each orderedClasses collect: [ :each | each asString ])) }
-			         asDictionary ]) sorted:
-		        [ :item | item at: #name ] ascending.
-	" package extensionMethods size > 0 ifTrue: [ tags add: 'Extensions' ]. "
-
-	^ { (#tags -> tags) } asDictionary
+			         (#name -> tag name asString).
+			         (#classes -> (tag orderedClasses collect: [ :each | each asString ])) }
+			         asDictionary ]) sorted: [ :item | item at: #name ] ascending.
+	^ {
+		  (#status -> #success).
+		  (#tags -> tags) } asDictionary
 ]
 
 { #category : #accessing }
 LiterateServer class >> packages [
-	^ { (#packages -> RPackageOrganizer default packageNames ) } asDictionary
+
+	^ {
+		  (#status -> #success).
+		  (#packages -> RPackageOrganizer default packageNames) } asDictionary
 ]
 
 { #category : #accessing }
@@ -356,9 +360,6 @@ LiterateServer class >> start [
 		GET: '/method/source'
 			-> [ :req |
 				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		GET: '/critiques/method'
-			-> [ :req |
-				self critiques: (req at: #class) method: (req at: #method) side: (req at: #side) ];
 		POST: '/eval' -> [ :req | self evalCode: (req at: #code) ];
 		POST: '/compile/class' -> [ :req |
 				self

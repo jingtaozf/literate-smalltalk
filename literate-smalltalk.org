@@ -278,13 +278,7 @@ text-mode "Literate Smalltalk code"
                    (lambda (&key response &allow-other-keys)
                      (setf literate-smalltalk-last-response response)
                      (case (request-response-status-code response)
-                       (200 (setf resp (request-response-data response)))
-                       ;; we have to add a timer to report exception because in a company completion, it will use `unwind-protect'
-                       ;; and make our error message silient.
-                       (500 (run-at-time "1 sec" nil
-                                         #'(lambda ()
-                                             (message "Fatal in pharo:%s"
-                                                      (cdr (assoc 'message (request-response-data literate-smalltalk-last-response)))))))
+                       ((200 500) (setf resp (request-response-data response)))
                        (t (error "Failed to request to remote pharo:%s" response))))))
     resp))
 #+END_SRC
@@ -382,9 +376,6 @@ start
 		GET: '/method/source'
 			-> [ :req |
 				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		GET: '/critiques/method'
-			-> [ :req |
-				self critiques: (req at: #class) method: (req at: #method) side: (req at: #side) ];
 		POST: '/eval' -> [ :req | self evalCode: (req at: #code) ];
 		POST: '/compile/class' -> [ :req |
 				self
@@ -444,7 +435,7 @@ namespaces
 	| names |
 	names := (Smalltalk globals allClasses collect: [ :each |
 		          each category asString ]) asSet asSortedCollection.
-	^ { (#namespaces -> names) } asDictionary
+	^ { (#status -> #success). (#namespaces -> names) } asDictionary
 #+END_SRC
 **** cache relationship between namespace and class
 It is slow to build such indexed from remote pharo, let store it to a global variable and cache it to local file.
@@ -506,10 +497,10 @@ classes: namespace
 	| resultList |
 	resultList := Smalltalk globals allClasses select: [ :each |
 		              each category asString = namespace ].
-	^ { (#classes -> (resultList collect: [ :each | each name asString ])) }
-		  asDictionary
+	^ {
+		  (#status -> #success).
+		  #classes -> (resultList collect: [ :each | each name asString ])  } asDictionary
 #+END_SRC
-
 ** package
 This bases on [[https://github.com/pharo-project/pharo/blob/Pharo9.0/src/RPackage-Core/RPackage.class.st][RPakcage]].
 *** a list of all packages
@@ -524,7 +515,10 @@ This bases on [[https://github.com/pharo-project/pharo/blob/Pharo9.0/src/RPackag
 **** pharo
 #+BEGIN_SRC smalltalk :side class :cat "accessing"
 packages
-	^ { (#packages -> RPackageOrganizer default packageNames ) } asDictionary
+
+	^ {
+		  (#status -> #success).
+		  (#packages -> RPackageOrganizer default packageNames) } asDictionary
 #+END_SRC
 *** a list of package tags.
 **** Emacs
@@ -543,24 +537,21 @@ packageTags: packageName
 	package := RPackageOrganizer default
 		           packageNamed: packageName asSymbol
 		           ifAbsent: RPackage new.
-	tags := (package classTags collect: [ :each |
+	tags := (package classTags collect: [ :tag |
 		         {
-			         (#name -> each name asString).
-			         (#classes
-			          ->
-			          (each orderedClasses collect: [ :each | each asString ])) }
-			         asDictionary ]) sorted:
-		        [ :item | item at: #name ] ascending.
-	" package extensionMethods size > 0 ifTrue: [ tags add: 'Extensions' ]. "
-
-	^ { (#tags -> tags) } asDictionary
+			         (#name -> tag name asString).
+			         (#classes -> (tag orderedClasses collect: [ :each | each asString ])) }
+			         asDictionary ]) sorted: [ :item | item at: #name ] ascending.
+	^ {
+		  (#status -> #success).
+		  (#tags -> tags) } asDictionary
 #+END_SRC
 *** a list of classes for a package tag
 *** a list of package extensions.
 **** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-package-extensions (package)
-  (literate-smalltalk-request (concat "package/extensions/" package)))
+  (cdr (assoc 'methods (literate-smalltalk-request (concat "package/extensions/" package)))))
 
 (defun literate-smalltalk-select-package-extension (package)
   (helm-select-list "Please select a package extension: " (literate-smalltalk-package-extensions package)))
@@ -588,7 +579,9 @@ packageExtensions: packageName
 			           (#side -> side).
 			           (#code -> each sourceCode).
 			           (#class -> class asString) } asDictionary ].
-	^ methods
+	^ {
+		  (#status -> #success).
+		  (#methods -> methods) } asDictionary
 #+END_SRC
 ** class
 *** Emacs
@@ -643,12 +636,12 @@ packageExtensions: packageName
 **** get class definition
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-class (class)
-  (literate-smalltalk-class-definition-string (literate-smalltalk-request (concat "class/" class))))
+  (literate-smalltalk-class-definition-string (cdr (assoc 'result (literate-smalltalk-request (concat "class/" class))))))
 #+END_SRC
 **** get categories of one class
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-categories (class)
-  (literate-smalltalk-request (concat "cats/" class)))
+  (cdr (assoc 'result (literate-smalltalk-request (concat "cats/" class)))))
 
 ;; (defun literate-smalltalk-select-a-category (namespace class)
 ;;   (helm-select-list "Please select a namespace: " (literate-smalltalk-categories namespace class)))
@@ -686,15 +679,9 @@ classDef: className
 	instanceSide := Dictionary new.
 	instanceSide at: #class put: className.
 	instanceSide at: #superclass put: class superclass printString.
-	instanceSide
-		at: #instvars
-		put: (self asStringArray: class instVarNames).
-	instanceSide
-		at: #classvars
-		put: (self asStringArray: class classVarNames).
-	instanceSide
-		at: #poolvars
-		put: (self asStringArray: class sharedPools).
+	instanceSide at: #instvars put: (self asStringArray: class instVarNames).
+	instanceSide at: #classvars put: (self asStringArray: class classVarNames).
+	instanceSide at: #poolvars put: (self asStringArray: class sharedPools).
 	instanceSide at: #package put: class category.
 	instanceSide at: #comment put: class comment.
 
@@ -703,14 +690,14 @@ classDef: className
 	classSide at: #class put: className.
 	classSide at: #superclass put: class superclass printString.
 	classSide at: #instvars put: (self asStringArray: class instVarNames).
-	classSide
-		at: #classvars
-		put: (self asStringArray: class classVarNames).
+	classSide at: #classvars put: (self asStringArray: class classVarNames).
 	classSide at: #poolvars put: (self asStringArray: class sharedPools).
 	result := Dictionary new.
 	result at: #instance put: instanceSide.
 	result at: #class put: classSide.
-	^ result
+	^ {
+		  (#status -> #success).
+		  (#result -> result) } asDictionary
 #+END_SRC
 **** get class categories
 #+BEGIN_SRC smalltalk :side class :cat "accessing"
@@ -720,17 +707,17 @@ classCats: className
 	result := Dictionary new.
 	class := Smalltalk at: className asSymbol.
 	cats := Set new.
-	class methodDictionary ifNotNil: [ :d |
-		d values do: [ :each | cats add: each category ] ].
+	class methodDictionary ifNotNil: [ :d | d valuesDo: [ :each | cats add: each category ] ].
 
 	result at: #instance put: cats.
 
 	class := class class.
 	cats := Set new.
-	class methodDictionary ifNotNil: [ :d |
-		d values do: [ :each | cats add: each category ] ].
+	class methodDictionary ifNotNil: [ :d | d valuesDo: [ :each | cats add: each category ] ].
 	result at: #class put: cats.
-	^ result
+	^ {
+		  (#status -> #success).
+		  (#result -> result) } asDictionary
 #+END_SRC
 **** get methods in one class category
 #+BEGIN_SRC smalltalk :side class :cat "accessing"
@@ -740,31 +727,30 @@ catMethods: className category: cat side: side
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
-	allMethods := class methodDictionary
-		              ifNil: [ #(  ) ]
-		              ifNotNil: [ :x | x associations ].
+	allMethods := class methodDictionary ifNil: [ #(  ) ] ifNotNil: [ :x | x associations ].
 
 	methods := cat = '*'
 		           ifTrue: [ allMethods ]
-		           ifFalse: [
-		           allMethods select: [ :e | e value category = cat ] ].
-	^ { (#methods
-	   ->
-	   (methods collect: [ :each | each key asString ])
-		   asSortedCollection) } asDictionary
+		           ifFalse: [ allMethods select: [ :e | e value category = cat ] ].
+	^ {
+		  (#status -> #success).
+		  (#methods -> (methods collect: [ :each | each key asString ]) asSortedCollection) }
+		  asDictionary
 #+END_SRC
 *
 **** get method source
 #+BEGIN_SRC smalltalk :side class :cat "accessing"
-methodSource: className name: name side: side
+methodSource: className name: methodName side: side
 
 	| class method |
-	class := Smalltalk at: className asSymbol.
-	side = #class ifTrue: [ class := class class ].
-	method := class methodDictionary at: name asSymbol.
-	^ { (#source -> method sourceCode) } asDictionary
+	class := side = #class
+		         ifTrue: [ Smalltalk at: className asSymbol class ]
+		         ifFalse: [ Smalltalk at: className asSymbol ].
+	method := class methodDictionary at: methodName asSymbol.
+	^ {
+		  (#status -> #success).
+		  (#source -> method sourceCode) } asDictionary
 #+END_SRC
-
 * Compile
 ** eval code
 *** Emacs
@@ -941,7 +927,8 @@ evalCode: code
                           ("source" . ,code)
                           ("side" . ,(literate-smalltalk-side-sym-as-param side)))
                 :type "POST"))
-         (result (cdr (assoc 'result resp)))
+         (result (cdr (assoc 'status resp)))
+         (message (or (cdr (assoc 'message resp)) ""))
          (critiques (cdr (assoc 'critiques resp)))
          (critiques-buffer-name "*smalltalk critiques*"))
     (unless current-prefix-arg
@@ -964,8 +951,8 @@ evalCode: code
                   (get-buffer-window critiques-buffer-name))
         (switch-to-buffer critiques-buffer-name)))
     (if (= 0 (length critiques))
-      (message "Compile %s." result)
-      (message "Compile %s( %d critique)." result (length critiques)))))
+      (message "Compile %s %s." result message)
+      (message "Compile %s( %d critique) %s." result (length critiques) message))))
 #+END_SRC
 **** API request to format code
 [[file:~/projects/smalltalk/pharo/src/Deprecated80/PluggableTextMorph.class.st::tree := RBParser parseMethod: source onError: \[ :msg :pos | ^ self \].][RBParser parseMethod]]
@@ -988,11 +975,10 @@ evalCode: code
 **** API request to complete code at position
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-request-complete-code (class source)
-  (literate-smalltalk-request
-   "completion/method"
-   :data `(("class" . ,class)
-             ("source" . ,(encode-coding-string source 'latin-1-mac)))
-   :type "POST"))
+  (literate-smalltalk-request "completion/method"
+                              :data `(("class" . ,class)
+                                      ("source" . ,(encode-coding-string source 'latin-1-mac)))
+                              :type "POST"))
 #+END_SRC
 
 **** API request to check critiques for a method
@@ -1047,14 +1033,22 @@ evalCode: code
                              (forward-line)
                              (line-beginning-position)))
          (code (buffer-substring-no-properties code-start-point (point)))
-         (completed-list (literate-smalltalk-request-complete-code
-                          (or (cdr (assq :class block-info))
-                              (save-current-buffer
-                                ;; have to switch to org buffer to access property value.
-                                (pm-set-buffer (plist-get block-info :begin))
-                                (org-entry-get (point) "literate-class" t)))
-                          code)))
-    (mapcar #'identity completed-list)))
+         (resp (literate-smalltalk-request-complete-code
+                (or (cdr (assq :class block-info))
+                    (save-current-buffer
+                      ;; have to switch to org buffer to access property value.
+                      (pm-set-buffer (plist-get block-info :begin))
+                      (org-entry-get (point) "literate-class" t)))
+                code)))
+    (if (string= "success" (cdr (assoc 'status resp)))
+      (mapcar #'identity (cdr (assoc 'entities resp)))
+      ;; we have to add a timer to report exception because in a company completion, it will use `unwind-protect'
+      ;; and make our error message silient.
+      (run-at-time "1 sec" nil
+                   #'(lambda ()
+                       (message "Fatal in pharo:%s"
+                                (cdr (assoc 'message (request-response-data literate-smalltalk-last-response))))))
+      nil)))
 #+END_SRC
 **** entry point for company mode
 #+BEGIN_SRC elisp
@@ -1114,25 +1108,30 @@ compileClass: instDef class: classDef
 #+BEGIN_SRC smalltalk :side class :cat "compile"
 compileMethod: className category: cat source: source side: side
 
-	| class result selector critiques |
+	| class status selector critiques message |
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
-	result := #success.
+	status := #success.
 	critiques := ''.
 	selector := ''.
+	message := ''.
 	[
 	selector := class compile: source classified: cat.
 	critiques := (class >> selector) critiques collect: [ :each | each asString ] ]
-		on: SyntaxErrorNotification , RuntimeSyntaxError
-		do: [ :ex | result := ex asString ].
+		on: SyntaxErrorNotification , RuntimeSyntaxError , OCAbortCompilation , OCSemanticError
+			, OCSemanticWarning , ReparseAfterSourceEditing
+		do: [ :ex |
+			message := ex asString.
+			status := ex className ].
 	^ {
-		  (#result -> result).
+		  (#status -> status).
+		  (#message -> message).
 		  (#selector -> selector).
 		  (#critiques -> critiques) } asDictionary
 #+END_SRC
 **** format code
-#+BEGIN_SRC smalltalk :side class
+#+BEGIN_SRC smalltalk :side class :cat "compile"
 formatCode: source type: type
 
 	| tree errBlock |
@@ -1141,10 +1140,9 @@ formatCode: source type: type
 		              (#status -> #failed).
 		              (#msg -> msg).
 		              (#pos -> pos) } asDictionary ].
-	type = 'code'
-		ifTrue: [
-		tree := RBParser parseExpression: source onError: errBlock ]
-		ifFalse: [ tree := RBParser parseMethod: source onError: errBlock ].
+	tree := type = 'code'
+		        ifTrue: [ RBParser parseExpression: source onError: errBlock ]
+		        ifFalse: [ RBParser parseMethod: source onError: errBlock ].
 	^ {
 		  (#status -> #success).
 		  (#source -> tree formattedCode) } asDictionary
@@ -1153,14 +1151,17 @@ formatCode: source type: type
 #+BEGIN_SRC smalltalk :side class :cat "compile"
 completion: className source: source
 
-	| class context |
+	| class context entities |
 	class := Smalltalk at: className asSymbol.
 	context := CompletionContext
 		           engine: CompletionEngine new
 		           class: class
 		           source: source
 		           position: source size.
-	^ context entries collect: [ :each | each contents ]
+	entities := context entries collect: [ :each | each contents ].
+	^ {
+		  (#status -> #success).
+		  (#entities -> entities) } asDictionary
 #+END_SRC
 **** critiques
 #+BEGIN_SRC smalltalk :side class :cat "compile"
