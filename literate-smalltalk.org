@@ -324,7 +324,7 @@ The REST Server for LiterateSmalltalk.
 "
 Object subclass: #LiterateServer
     instanceVariableNames: ''
-    classVariableNames: 'Server Started'
+    classVariableNames: 'Server Started lastEvalResult'
     package: 'LiterateSmalltalk'
 ----------------------
 LiterateServer class
@@ -784,16 +784,16 @@ evalCode: code
 
 	| status result |
 	status := #success.
-	result := [
-	          OpalCompiler new
-		          source: code;
-		          evaluate ]
-		          on: Exception
-		          do: [ :ex |
-			          status := #failed.
-			          result := ex ].
+	lastEvalResult := [
+	                  OpalCompiler new
+		                  source: code;
+		                  evaluate ]
+		                  on: Exception
+		                  do: [ :ex |
+			                  status := #failed.
+			                  result := ex ].
 	^ {
-		  (#result -> result asString).
+		  (#result -> lastEvalResult asString).
 		  (#status -> status) } asDictionary
 #+END_SRC
 ** compile

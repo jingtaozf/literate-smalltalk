@@ -6,7 +6,8 @@ Class {
 	#superclass : #Object,
 	#classVars : [
 		'Server',
-		'Started'
+		'Started',
+		'lastEvalResult'
 	],
 	#category : #LiterateSmalltalk
 }
@@ -154,8 +155,9 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 	critiques := ''.
 	[
 	selector := class compile: source classified: cat.
-	critiques := (class >> selector) critiques collect: [ :each | each asString ] ]
-		on: SyntaxErrorNotification, RuntimeSyntaxError
+	critiques := (class >> selector) critiques collect: [ :each |
+		             each asString ] ]
+		on: Error
 		do: [ :ex | result := ex asString ].
 	^ {
 		  (#result -> result).
@@ -196,16 +198,16 @@ LiterateServer class >> evalCode: code [
 
 	| status result |
 	status := #success.
-	result := [ 
-	          OpalCompiler new
-		          source: code;
-		          evaluate ]
-		          on: Exception
-		          do: [ :ex | 
-			          status := #failed.
-			          result := ex ].
-	^ { 
-		  (#result -> result asString).
+	lastEvalResult := [
+	                  OpalCompiler new
+		                  source: code;
+		                  evaluate ]
+		                  on: Exception
+		                  do: [ :ex |
+			                  status := #failed.
+			                  result := ex ].
+	^ {
+		  (#result -> lastEvalResult asString).
 		  (#status -> status) } asDictionary
 ]
 
