@@ -339,30 +339,23 @@ LiterateServer class >> start [
 	self server: teapot.
 	teapot
 		GET: '/namespaces' -> [ :req | self namespaces ];
-		GET: '/classes/<namespace>'
-			-> [ :req | self classes: (req at: #namespace) ];
+		GET: '/classes/<namespace>' -> [ :req | self classes: (req at: #namespace) ];
 		GET: '/packages' -> [ :req | self packages ];
-		GET: '/package/tags/<package>'
-			-> [ :req | self packageTags: (req at: #package) ];
-		GET: '/package/extensions/<package>'
+		GET: '/package/tags/<package>' -> [ :req | self packageTags: (req at: #package) ];
+		GET:
+			'/package/extensions/<package>'
 			-> [ :req | self packageExtensions: (req at: #package) ];
 		GET: '/class/<class>' -> [ :req | self classDef: (req at: #class) ];
 		GET: '/cats/<class>' -> [ :req | self classCats: (req at: #class) ];
-		GET: '/cat/methods' -> [ :req |
-				self
-					catMethods: (req at: #class)
-					category: (req at: #cat)
-					side: (req at: #side) ];
-		GET: '/method/source' -> [ :req |
-				self
-					methodSource: (req at: #class)
-					name: (req at: #name)
-					side: (req at: #side) ];
-		GET: '/critiques/method' -> [ :req |
-				self
-					critiques: (req at: #class)
-					method: (req at: #method)
-					side: (req at: #side) ];
+		GET: '/cat/methods'
+			-> [ :req |
+				self catMethods: (req at: #class) category: (req at: #cat) side: (req at: #side) ];
+		GET: '/method/source'
+			-> [ :req |
+				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
+		GET: '/critiques/method'
+			-> [ :req |
+				self critiques: (req at: #class) method: (req at: #method) side: (req at: #side) ];
 		POST: '/eval' -> [ :req | self evalCode: (req at: #code) ];
 		POST: '/compile/class' -> [ :req |
 				self
@@ -374,14 +367,14 @@ LiterateServer class >> start [
 					category: (req at: #category)
 					source: (req at: #source)
 					side: (req at: #side) ];
-		POST: '/format/code'
-			-> [ :req |
-				self formatCode: (req at: #source) type: (req at: #type) ];
+		POST:
+			'/format/code' -> [ :req | self formatCode: (req at: #source) type: (req at: #type) ];
 		POST: '/completion/method'
-			-> [ :req |
-				self completion: (req at: #class) source: (req at: #source) ];
-		exception:
-			KeyNotFound -> (TeaResponse notFound body: 'No such method');
+			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
+		exception: Exception -> [ :ex :req |
+				ZnResponse serverError: (NeoJSONWriter toString: {
+									 (#status -> #fatal).
+									 (#message -> ex asString) } asDictionary) ];
 		start.
 
 	Started := true
