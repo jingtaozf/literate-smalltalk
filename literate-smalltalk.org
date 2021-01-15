@@ -1579,5 +1579,10 @@ y
 #+END_SRC
 ** ban some critiques rules
 #+BEGIN_SRC smalltalk :type code
-ReBadMessageRule enabled: false.
+{ #RBBadMessageRule. #ReBadMessageRule. #RBImplementedNotSentRule. #ReImplementedNotSentRule.  }
+	do: [ :name |
+		| class |
+		class := Smalltalk at: name ifAbsent: [ nil ].
+		class ifNotNil: [ class enabled: false ]
+		]
 #+END_SRC
