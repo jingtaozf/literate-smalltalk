@@ -210,6 +210,7 @@ LiterateServer class >> evalCode: code [
 		          on: Exception
 		          do: [ :ex |
 			          status := #failed.
+								(ex isKindOf: Halt) ifTrue: [ ex pass].
 			          result := ex ].
 	evalResults add: result.
 	^ {
@@ -381,6 +382,7 @@ LiterateServer class >> start [
 		POST: '/completion/method'
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
 		exception: Exception -> [ :ex :req |
+		    (ex isKindOf: Halt) ifTrue: [ ex pass].
 				ZnResponse serverError: (NeoJSONWriter toString: {
 									 (#status -> #fatal).
 									 (#message -> ex asString) } asDictionary) ];
