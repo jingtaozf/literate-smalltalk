@@ -1124,7 +1124,7 @@ compileMethod: className category: cat source: source side: side
 	[
 	selector := class compile: source classified: cat.
 	critiques := (class >> selector) critiques collect: [ :each | each asString ] ]
-		on: SyntaxErrorNotification , RuntimeSyntaxError , OCAbortCompilation , OCSemanticError
+		on: SyntaxErrorNotification , OCAbortCompilation , OCSemanticError
 			, OCSemanticWarning , ReparseAfterSourceEditing
 		do: [ :ex |
 			message := ex asString.
@@ -1554,11 +1554,8 @@ override our own compilation report.
 
 * Release to pharo
 #+BEGIN_SRC smalltalk :type code
-| working file |
-working := FileSystem disk workingDirectory.
-file := working
-        /
-        'projects/literate-smalltalk/LiterateSmalltalk/LiterateServer.class.st'.
+| file |
+file := ((OSEnvironment current at: #HOME), '/projects/literate-smalltalk/LiterateSmalltalk/LiterateServer.class.st') asFileReference.
 file exists ifTrue: [ file delete ].
 file
 	writeStreamDo: [ :s | TonelWriter exportClass: LiterateServer on: s ];

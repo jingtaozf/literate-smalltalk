@@ -150,7 +150,7 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 	[
 	selector := class compile: source classified: cat.
 	critiques := (class >> selector) critiques collect: [ :each | each asString ] ]
-		on: SyntaxErrorNotification , RuntimeSyntaxError , OCAbortCompilation , OCSemanticError
+		on: SyntaxErrorNotification , OCAbortCompilation , OCSemanticError
 			, OCSemanticWarning , ReparseAfterSourceEditing
 		do: [ :ex |
 			message := ex asString.
