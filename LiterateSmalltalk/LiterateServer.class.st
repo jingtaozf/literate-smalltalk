@@ -64,9 +64,15 @@ LiterateServer class >> classDef: className [
 	instanceSide := Dictionary new.
 	instanceSide at: #class put: className.
 	instanceSide at: #superclass put: class superclass printString.
-	instanceSide at: #instvars put: (self asStringArray: class instVarNames).
-	instanceSide at: #classvars put: (self asStringArray: class classVarNames).
-	instanceSide at: #poolvars put: (self asStringArray: class sharedPools).
+	instanceSide
+		at: #instvars
+		put: (self asStringArray: class instVarNames).
+	instanceSide
+		at: #classvars
+		put: (self asStringArray: class classVarNames).
+	instanceSide
+		at: #poolvars
+		put: (self asStringArray: class sharedPools).
 	instanceSide at: #package put: class category.
 	instanceSide at: #comment put: class comment.
 
@@ -75,12 +81,14 @@ LiterateServer class >> classDef: className [
 	classSide at: #class put: className.
 	classSide at: #superclass put: class superclass printString.
 	classSide at: #instvars put: (self asStringArray: class instVarNames).
-	classSide at: #classvars put: (self asStringArray: class classVarNames).
+	classSide
+		at: #classvars
+		put: (self asStringArray: class classVarNames).
 	classSide at: #poolvars put: (self asStringArray: class sharedPools).
 	result := Dictionary new.
 	result at: #instance put: instanceSide.
 	result at: #class put: classSide.
-	^ {
+	^ { 
 		  (#status -> #success).
 		  (#result -> result) } asDictionary
 ]
@@ -102,16 +110,15 @@ LiterateServer class >> compileClass: instDef class: classDef [
 	| parent class status instvars classvars |
 	status := #success.
 	instvars := ''.
-	(instDef at: #instvars) ifNotNil: [
+	(instDef at: #instvars) ifNotNil: [ 
 		instvars := self elementsString: (instDef at: #instvars) ].
-
 	classvars := ''.
-	(instDef at: #classvars) ifNotNil: [
+	(instDef at: #classvars) ifNotNil: [ 
 		classvars := self elementsString: (instDef at: #classvars) ].
 
 	"Looks a bit kludgy, but currently I dont know how to make it better. TODO: refactor"
 	parent := Smalltalk at: (instDef at: #super) asSymbol.
-	[
+	[ 
 	class := parent
 		         subclass: (instDef at: #name) asSymbol
 		         instanceVariableNames: instvars
@@ -119,20 +126,17 @@ LiterateServer class >> compileClass: instDef class: classDef [
 		         poolDictionaries: ''
 		         category: (instDef at: #package) ]
 		on: Error
-		do: [ :e |
-			Transcript
-				show: e printString;
-				cr.
-			status := #failed ].
-
+		do: [ :e | 
+			^ { 
+				  (#status -> #instFailed).
+				  (#message -> e asString) } asDictionary ].
 	class := Smalltalk at: (instDef at: #name) asSymbol ifAbsent: [ nil ].
 	class comment: (instDef at: #comment).
 	"On Pharo, there were a strange exception when using the safe form."
 	instvars := ''.
-	(classDef at: #instvars) ifNotNil: [
+	(classDef at: #instvars) ifNotNil: [ 
 		instvars := self elementsString: (classDef at: #instvars) ].
 	class class instanceVariableNames: instvars.
-
 	^ { (#status -> status) } asDictionary
 ]
 
