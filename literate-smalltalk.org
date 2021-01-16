@@ -13,7 +13,7 @@
 * Table of Contents                                            :TOC:noexport:
 - [[#introduction][Introduction]]
 - [[#preparation][Preparation]]
-- [[#how-to-do-it-04][How to do it?]]
+- [[#how-to-do-it-45][How to do it?]]
 - [[#a-minor-mode-for-source-code][a minor mode for source code]]
 - [[#utilities][utilities]]
   - [[#forward-to-begin-of-function][forward to begin of function]]
@@ -89,17 +89,20 @@ You need to install pharo side codes in pharo and start server by the following 
 #+begin_src st
 LiterateServer start.
 #+end_src
-* How to do it? [0/4]
+* How to do it? [4/5]
 We interact with pharo via shampoo, and hack shampoo to fetch/update codes in an org file.
 
-- [ ] Find packages's sub category
+- [X] Find packages's sub category
   https://github.com/pharo-open-documentation/pharo-wiki/blob/master/General/Extensions.md#define-an-extension-method-programmatically
-- [ ] Find package's extensions
+- [X] Find package's extensions
   (RPackageOrganizer default packageMatchingExtensionName: #packagename) metaclassExtensionSelectors .
-- [ ] Tonel read write
+- [X] Tonel read write
   https://gist.github.com/peteruhnak/e4ba8d52bf4a89c4c9e015bb59b442fd
-- [ ] opal compile
+- [X] opal compile
 	https://gist.github.com/peteruhnak/e2235e43a25feb6cf0d7196192cf8aea
+- [ ] remove a class method at point
+  MyClass removeFromSystem
+  MyClass removeSelector: #foo
 * a minor mode for source code
 inspired from shampoo-code-mode
 #+BEGIN_SRC elisp
