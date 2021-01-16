@@ -1573,6 +1573,7 @@ file
 :results:  value
 :END:
 #+BEGIN_SRC smalltalk :type code :results raw
+| y |
 y := Dictionary new.
 y at: 'page' put: '2'.
 y
