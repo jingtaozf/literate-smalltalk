@@ -16,7 +16,6 @@
 - [[#how-to-do-it-04][How to do it?]]
 - [[#a-minor-mode-for-source-code][a minor mode for source code]]
 - [[#utilities][utilities]]
-  - [[#valid-side][valid side]]
   - [[#forward-to-begin-of-function][forward to begin of function]]
   - [[#region-of-current-symbol][region of current symbol]]
   - [[#current-symbol-at-point][current symbol at point]]
@@ -56,14 +55,14 @@
     - [[#command-to-code-format][command to code format]]
     - [[#code-completion-with-company-mode][code completion with company mode]]
     - [[#pharo-2][Pharo]]
-  - [[#code-navigation][Code navigation]]
-    - [[#search-a-pattern-in-a-buffer-and-return-its-position][search a pattern in a buffer and return its position]]
-    - [[#find-definition-of-class-in-org-files][find definition of class in org files]]
-    - [[#find-definition-of-a-class-method-in-org-files][find definition of a class method in org files]]
-    - [[#get-method-name-from-method-codes][get method name from method codes]]
-    - [[#basic-idea][basic idea]]
-    - [[#xref-interfaces][xref interfaces]]
-    - [[#implementation][implementation]]
+- [[#code-navigation][Code navigation]]
+  - [[#search-a-pattern-in-a-buffer-and-return-its-position][search a pattern in a buffer and return its position]]
+  - [[#find-definition-of-class-in-org-files][find definition of class in org files]]
+  - [[#find-definition-of-a-class-method-in-org-files][find definition of a class method in org files]]
+  - [[#get-method-name-from-method-codes][get method name from method codes]]
+  - [[#basic-idea][basic idea]]
+  - [[#xref-interfaces][xref interfaces]]
+  - [[#implementation][implementation]]
 - [[#update-source][Update source]]
 - [[#imports-codes-to-org-file][imports codes to org file]]
   - [[#import-codes-of-namespaces-to-org-mode][Import codes of namespaces to org mode]]
@@ -198,13 +197,6 @@ text-mode "Literate Smalltalk code"
 #+END_SRC
 
 * utilities
-** valid side
-#+BEGIN_SRC elisp
-(defvar literate-smalltalk-valid-sides '(:class :instance))
-(defun literate-smalltalk-side-sym-as-param (sym)
-  (cdr (assoc sym '((:instance . "instance")
-                    (:class    . "class")))))
-#+END_SRC
 ** forward to begin of function
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-beginning-of-defun-function (arg)
@@ -277,7 +269,6 @@ text-mode "Literate Smalltalk code"
         :complete (cl-function
                    (lambda (&key response &allow-other-keys)
                      (setf literate-smalltalk-last-response response)
-                     (setf resp (request-response-data response))
                      (case (request-response-status-code response)
                        ((200 500) (setf resp (request-response-data response)))
                        (t (error "Failed to request to remote pharo:%s" response))))))
@@ -940,7 +931,7 @@ evalCode: code
                 :data `(("class" . ,class)
                           ("category" . ,category)
                           ("source" . ,code)
-                          ("side" . ,(literate-smalltalk-side-sym-as-param side)))
+                          ("side" . ,side))
                 :type "POST"))
          (result (cdr (assoc 'status resp)))
          (message (or (cdr (assoc 'message resp)) ""))
@@ -957,7 +948,7 @@ evalCode: code
           (delete-region (point-min) (point-max)))
         (insert "--------------------------------------")
         (newline)
-        (insert "When compiling '" class "' " (literate-smalltalk-side-sym-as-param side) " method '" (cdr (assoc 'selector resp)) "':")
+        (insert "When compiling '" class "' " side " method '" (cdr (assoc 'selector resp)) "':")
         (newline)
         (loop for critique across critiques
               do (insert critique)
@@ -1184,8 +1175,9 @@ critiques: className method: methodName side: side
 	critiques := (class >> methodName asSymbol) critiques.
 	^ critiques collect: [ :each | each asString ]
 #+END_SRC
-** Code navigation
-*** search a pattern in a buffer and return its position
+* Code navigation
+The code navigation in pharo is straight-forward, there are only two concepts to lookup, a Class or a method.
+** search a pattern in a buffer and return its position
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-libraries-literate-path "~/Pharo/literate/")
 (defun literate-smalltalk-search-pattern (pattern)
@@ -1200,12 +1192,12 @@ critiques: className method: methodName side: side
                    (org-ensure-point-visible)
                    (return (list (current-buffer) (point)))))))))
 #+END_SRC
-*** find definition of class in org files
+** find definition of class in org files
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-find-class-definition (class-name)
   (literate-smalltalk-search-pattern (format "subclass: #%s" class-name)))
 #+END_SRC
-*** find definition of a class method in org files
+** find definition of a class method in org files
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-find-method-definition (class-name method-name)
   (or (literate-smalltalk-search-pattern (format ":class %s.*[\n\r]%s" class-name method-name))
@@ -1219,7 +1211,8 @@ critiques: className method: methodName side: side
                      (if (re-search-forward (concat "#\\+PROPERTY:\\s+literate-class\\s+" class-name) nil t)
                        (setf start (point-min)
                              end (point-max))
-                       (when (re-search-forward (format "^:literate-class:\s+%s" class-name) nil t)
+                       (goto-char (point-min))
+                       (when (re-search-forward (format ":literate-class:\s+%s" class-name) nil t)
                          (re-search-backward "^\\*")
                          (let ((block-info (second (org-element-context))))
                            (when (re-search-forward (concat "^\s*" method-name) (plist-get block-info :end) t)
@@ -1227,7 +1220,7 @@ critiques: className method: methodName side: side
                              (org-ensure-point-visible)
                              (return (list (current-buffer) (point)))))))))))))
 #+END_SRC
-*** get method name from method codes
+** get method name from method codes
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-method-name-from-source (source)
   (let* ((first-line (first (split-string body "[\n\r]+" t nil)))
@@ -1240,7 +1233,7 @@ critiques: className method: methodName side: side
                 do (insert item))
         (buffer-string)))))
 #+END_SRC
-*** basic idea
+** basic idea
 We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref backend to search.
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-xref-backend ()
@@ -1251,7 +1244,7 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
   (setf xref-backend-functions '(literate-smalltalk-xref-backend)))
 (add-hook 'literate-smalltalk-code-mode-hook 'install-literate-smalltalk-xref-backend)
 #+END_SRC
-*** xref interfaces
+** xref interfaces
 #+BEGIN_SRC elisp
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql xref-st)))
   (literate-smalltalk-current-symbol-at-point))
@@ -1259,7 +1252,7 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
 (cl-defmethod xref-backend-definitions ((_backend (eql xref-st)) symbol)
   (literate-smalltalk--xref-find-definitions symbol))
 #+END_SRC
-*** implementation
+** implementation
 #+BEGIN_SRC elisp
 (defun literate-smalltalk--xref-find-definitions (name)
   (interactive)
@@ -1289,15 +1282,13 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
                  (if (search "subclass: #" body)
                    :class
                    :method)))
-         (side (and (cdr (assq :side params))
-                    (intern (concat ":" (cdr (assq :side params))))))
          (code (case type
                  (:method
                      (literate-smalltalk-method-source
                       (or (cdr (assq :class params))
                           (org-entry-get (point) "literate-class" t))
                       (literate-smalltalk-method-name-from-source body)
-                      (literate-smalltalk-side-sym-as-param side)))
+                      (cdr (assq :side params))))
                  (:class
                   (literate-smalltalk-class
                    (or (cdr (assq :name params))
@@ -1351,25 +1342,24 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
                       (newline)
                       (insert "#+END_SRC")
                       (newline)
-                      (loop for side in literate-smalltalk-valid-sides
-                            for side-symbol = (intern (subseq (symbol-name side) 1))
-                            for side-name = (literate-smalltalk-side-sym-as-param side)
+                      (loop for side in '("class" "instance")
+                            for side-symbol = (intern side)
                             do (loop for category across (cdr (assoc side-symbol categories-dict))
                                      for normalized-category = (replace-regexp-in-string
                                                                        " " "@" category)
                                      do (loop for method in (literate-smalltalk-category-methods
-                                                                     class category side-name)
+                                                                     class category side)
                                               for source = (literate-smalltalk-method-source
-                                                                  class method side-name)
+                                                                  class method side)
                                               if (not (literate-smalltalk-autogenerated-code? source))
                                               do (insert "*** METHOD "
                                                          method "                                            "
-                                                                (symbol-name side)
+                                                                side
                                                          ":" normalized-category ":")
                                                  (newline)
                                                  (insert "#+BEGIN_SRC smalltalk"
                                                          " :class " class
-                                                         " :side " side-name
+                                                         " :side " side
                                                          " :cat \"" category "\"")
                                                  (newline)
                                                  (insert source)
@@ -1415,25 +1405,24 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
                                (newline)
                                (insert "#+END_SRC")
                                (newline)
-                               (loop for side in literate-smalltalk-valid-sides
-                                     for side-symbol = (intern (subseq (symbol-name side) 1))
-                                     for side-name = (literate-smalltalk-side-sym-as-param side)
+                               (loop for side in '("class" "instance")
+                                     for side-symbol = (intern side)
                                      do (loop for category across (cdr (assoc side-symbol categories-dict))
                                               for normalized-category = (replace-regexp-in-string
                                                                                 " " "@" category)
                                               do (loop for method in (literate-smalltalk-category-methods
-                                                                              class category side-name)
+                                                                              class category side)
                                                        for source = (literate-smalltalk-method-source
-                                                                             class method side-name)
+                                                                             class method side)
                                                        if (not (literate-smalltalk-autogenerated-code? source))
                                                          do (insert "**** METHOD "
                                                                     method "                                            "
-                                                                           (symbol-name side)
+                                                                           side
                                                                     ":" normalized-category ":")
                                                             (newline)
                                                             (insert "#+BEGIN_SRC smalltalk"
                                                                     " :class " class
-                                                                    " :side " side-name
+                                                                    " :side " side
                                                                     " :cat \"" category "\"")
                                                             (newline)
                                                             (insert source)

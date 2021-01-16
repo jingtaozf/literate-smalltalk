@@ -88,7 +88,7 @@ LiterateServer class >> classDef: className [
 	result := Dictionary new.
 	result at: #instance put: instanceSide.
 	result at: #class put: classSide.
-	^ { 
+	^ {
 		  (#status -> #success).
 		  (#result -> result) } asDictionary
 ]
@@ -110,15 +110,15 @@ LiterateServer class >> compileClass: instDef class: classDef [
 	| parent class status instvars classvars |
 	status := #success.
 	instvars := ''.
-	(instDef at: #instvars) ifNotNil: [ 
+	(instDef at: #instvars) ifNotNil: [
 		instvars := self elementsString: (instDef at: #instvars) ].
 	classvars := ''.
-	(instDef at: #classvars) ifNotNil: [ 
+	(instDef at: #classvars) ifNotNil: [
 		classvars := self elementsString: (instDef at: #classvars) ].
 
 	"Looks a bit kludgy, but currently I dont know how to make it better. TODO: refactor"
 	parent := Smalltalk at: (instDef at: #super) asSymbol.
-	[ 
+	[
 	class := parent
 		         subclass: (instDef at: #name) asSymbol
 		         instanceVariableNames: instvars
@@ -126,15 +126,15 @@ LiterateServer class >> compileClass: instDef class: classDef [
 		         poolDictionaries: ''
 		         category: (instDef at: #package) ]
 		on: Error
-		do: [ :e | 
-			^ { 
+		do: [ :e |
+			^ {
 				  (#status -> #instFailed).
 				  (#message -> e asString) } asDictionary ].
 	class := Smalltalk at: (instDef at: #name) asSymbol ifAbsent: [ nil ].
 	class comment: (instDef at: #comment).
 	"On Pharo, there were a strange exception when using the safe form."
 	instvars := ''.
-	(classDef at: #instvars) ifNotNil: [ 
+	(classDef at: #instvars) ifNotNil: [
 		instvars := self elementsString: (classDef at: #instvars) ].
 	class class instanceVariableNames: instvars.
 	^ { (#status -> status) } asDictionary
