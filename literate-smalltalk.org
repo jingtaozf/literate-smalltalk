@@ -270,10 +270,9 @@ text-mode "Literate Smalltalk code"
                    (lambda (&key response &allow-other-keys)
                      (setf literate-smalltalk-last-response response)
                      (case (request-response-status-code response)
-                       ((200 500) (setf resp (request-response-data response)))
+                       (200 (setf resp (request-response-data response)))
+                       (500 (error "Pharo failed:%s" (cdr (assoc 'message resp))))
                        (t (error "Failed to request to remote pharo:%s" response))))))
-    (unless (string= "success" (cdr (assoc 'status resp)))
-      (error "Pharo failed:%s" (cdr (assoc 'message resp))))
     resp))
 #+END_SRC
 * baseline for pharo
@@ -370,7 +369,8 @@ start
 		GET: '/method/source'
 			-> [ :req |
 				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		POST: '/eval' -> [ :req | self evalCode: (req at: #code) ];
+		POST: '/eval'
+			-> [ :req | self evalCode: (req at: #code) openInspector: (req at: #inspector) = #true ];
 		POST: '/compile/class' -> [ :req |
 				self
 					compileClass: (NeoJSONReader fromString: (req at: #instance))
@@ -386,7 +386,7 @@ start
 		POST: '/completion/method'
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
 		exception: Exception -> [ :ex :req |
-		    (ex isKindOf: Halt) ifTrue: [ ex pass].
+				(ex isKindOf: Halt) ifTrue: [ ex pass ].
 				ZnResponse serverError: (NeoJSONWriter toString: {
 									 (#status -> #fatal).
 									 (#message -> ex asString) } asDictionary) ];
@@ -760,18 +760,21 @@ methodSource: className name: methodName side: side
 ** eval code
 *** Emacs
 #+BEGIN_SRC elisp
-(defun literate-smalltalk-eval (code)
+(defun literate-smalltalk-eval (code inspector-p)
   (let ((resp (literate-smalltalk-request
                                      "eval"
                                      :type "POST"
-                                     :data `(("code" . ,code)))))
+                                     :data `(("code" . ,code)
+                                             ("inspector" . ,(if inspector-p
+                                                               "true"
+                                                               "false"))))))
     (if (string= "success" (cdr (assoc 'status resp)))
       (cdr (assoc 'message resp))
       (error "Failed to eval code:'%s'!" (cdr (assoc 'message resp))))))
 #+END_SRC
 *** Pharo
 #+BEGIN_SRC smalltalk :side class :cat "compile"
-evalCode: code
+evalCode: code openInspector: openInspector
 
 	| status result |
 	status := #success.
@@ -782,9 +785,10 @@ evalCode: code
 		          on: Exception
 		          do: [ :ex |
 			          status := #failed.
-								(ex isKindOf: Halt) ifTrue: [ ex pass].
+			          (ex isKindOf: Halt) ifTrue: [ ex pass ].
 			          result := ex ].
 	evalResults add: result.
+	openInspector ifTrue: [ GTInspector inspect: result ].
 	^ {
 		  (#message -> result asString).
 		  (#status -> status) } asDictionary
@@ -1278,18 +1282,18 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
          (body (nth 1 info))
          (params (nth 2 info))
          (type (if (cdr (assq :type params))
-                 (intern (concat ":" (cdr (assq :type params))))
+                 (intern (cdr (assq :type params)))
                  (if (search "subclass: #" body)
-                   :class
-                   :method)))
+                   'class
+                   'method)))
          (code (case type
-                 (:method
+                 (method
                      (literate-smalltalk-method-source
                       (or (cdr (assq :class params))
                           (org-entry-get (point) "literate-class" t))
                       (literate-smalltalk-method-name-from-source body)
                       (cdr (assq :side params))))
-                 (:class
+                 (class
                   (literate-smalltalk-class
                    (or (cdr (assq :name params))
                        (org-entry-get (point) "literate-class" t))))
@@ -1481,23 +1485,22 @@ Argument PARAMS: the input parameters."
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-execute-code-block (body params)
   (let ((type (if (cdr (assq :type params))
-                (intern (concat ":" (cdr (assq :type params))))
+                (intern (cdr (assq :type params)))
                 (if (search "subclass: #" body)
-                  :class
-                  :method)))
-        (side (and (cdr (assq :side params))
-                   (intern (concat ":" (cdr (assq :side params))))))
+                  'class
+                  'method)))
+        (side (cdr (assq :side params)))
         (code (encode-coding-string body 'latin-1-mac)))
     (case type
-      (:code (literate-smalltalk-eval code))
-      (:method
+      (code (literate-smalltalk-eval code (not (null current-prefix-arg))))
+      (method
         (literate-smalltalk-compile-method
          (or (cdr (assq :class params))
              (org-entry-get (point) "literate-class" t))
          side
          (cdr (assq :cat params))
          code))
-      (:class
+      (class
        (literate-smalltalk-compile-class body))
       (t
        (error "Unknown type %s" type)))))

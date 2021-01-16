@@ -219,6 +219,27 @@ LiterateServer class >> evalCode: code [
 ]
 
 { #category : #compile }
+LiterateServer class >> evalCode: code openInspector: openInspector [
+
+	| status result |
+	status := #success.
+	result := [ 
+	          OpalCompiler new
+		          source: code;
+		          evaluate ]
+		          on: Exception
+		          do: [ :ex | 
+			          status := #failed.
+			          (ex isKindOf: Halt) ifTrue: [ ex pass ].
+			          result := ex ].
+	evalResults add: result.
+	openInspector ifTrue: [ GTInspector inspect: result ].
+	^ { 
+		  (#message -> result asString).
+		  (#status -> status) } asDictionary
+]
+
+{ #category : #compile }
 LiterateServer class >> formatCode: source [
 
 	| tree |
@@ -366,7 +387,8 @@ LiterateServer class >> start [
 		GET: '/method/source'
 			-> [ :req |
 				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		POST: '/eval' -> [ :req | self evalCode: (req at: #code) ];
+		POST: '/eval'
+			-> [ :req | self evalCode: (req at: #code) openInspector: (req at: #inspector) = #true ];
 		POST: '/compile/class' -> [ :req |
 				self
 					compileClass: (NeoJSONReader fromString: (req at: #instance))
@@ -382,11 +404,31 @@ LiterateServer class >> start [
 		POST: '/completion/method'
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
 		exception: Exception -> [ :ex :req |
-		    (ex isKindOf: Halt) ifTrue: [ ex pass].
+				(ex isKindOf: Halt) ifTrue: [ ex pass ].
 				ZnResponse serverError: (NeoJSONWriter toString: {
 									 (#status -> #fatal).
 									 (#message -> ex asString) } asDictionary) ];
 		start.
 
 	Started := true
+]
+
+{ #category : #compile }
+LiterateServer >> evalCode: code openInspector: openInspector [
+
+	| status result |
+	status := #success.
+	result := [ 
+	          OpalCompiler new
+		          source: code;
+		          evaluate ]
+		          on: Exception
+		          do: [ :ex | 
+			          status := #failed.
+			          (ex isKindOf: Halt) ifTrue: [ ex pass ].
+			          result := ex ].
+	evalResults add: result.
+	^ { 
+		  (#message -> result asString).
+		  (#status -> status) } asDictionary
 ]
