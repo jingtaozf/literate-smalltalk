@@ -182,16 +182,6 @@ LiterateServer class >> completion: className source: source [
 		  (#entities -> entities) } asDictionary
 ]
 
-{ #category : #compile }
-LiterateServer class >> critiques: className method: methodName side: side [
-
-	| class critiques |
-	class := self class environment at: className.
-	side = #class ifTrue: [ class := class class ].
-	critiques := (class >> methodName asSymbol) critiques.
-	^ critiques collect: [ :each | each asString ]
-]
-
 { #category : #utilities }
 LiterateServer class >> elementsString: items [
 
@@ -199,7 +189,7 @@ LiterateServer class >> elementsString: items [
 ]
 
 { #category : #compile }
-LiterateServer class >> evalCode: code [
+LiterateServer class >> evalCode: code openInspector: openInspector [
 
 	| status result |
 	status := #success.
@@ -210,46 +200,13 @@ LiterateServer class >> evalCode: code [
 		          on: Exception
 		          do: [ :ex |
 			          status := #failed.
-								(ex isKindOf: Halt) ifTrue: [ ex pass].
-			          result := ex ].
-	evalResults add: result.
-	^ {
-		  (#message -> result asString).
-		  (#status -> status) } asDictionary
-]
-
-{ #category : #compile }
-LiterateServer class >> evalCode: code openInspector: openInspector [
-
-	| status result |
-	status := #success.
-	result := [ 
-	          OpalCompiler new
-		          source: code;
-		          evaluate ]
-		          on: Exception
-		          do: [ :ex | 
-			          status := #failed.
 			          (ex isKindOf: Halt) ifTrue: [ ex pass ].
 			          result := ex ].
 	evalResults add: result.
 	openInspector ifTrue: [ GTInspector inspect: result ].
-	^ { 
+	^ {
 		  (#message -> result asString).
 		  (#status -> status) } asDictionary
-]
-
-{ #category : #compile }
-LiterateServer class >> formatCode: source [
-
-	| tree |
-	tree := RBParser
-		        parseMethod: source
-		        onError: [ :msg :pos |
-		        ^ { #status -> #failed. #msg -> msg. #pos -> pos } asDictionary ].
-	^ {
-		  (#status -> #success).
-		  (#source -> tree formattedCode) } asDictionary
 ]
 
 { #category : #compile }
