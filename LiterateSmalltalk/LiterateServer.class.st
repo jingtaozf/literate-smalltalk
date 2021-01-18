@@ -153,9 +153,17 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 	message := ''.
 	[
 	selector := class compile: source classified: cat.
-	critiques := (class >> selector) critiques collect: [ :each | each asString ] ]
-		on: SyntaxErrorNotification , OCAbortCompilation , OCSemanticError
-			, OCSemanticWarning , ReparseAfterSourceEditing
+	critiques := (class >> selector) critiques collect: [ :critique |
+		             | anchor first last |
+		             anchor := critique sourceAnchor interval.
+		             first := anchor ifNotNil: [ anchor first ].
+		             last := anchor ifNotNil: [ anchor last ].
+		             {
+			             (#message -> critique asString).
+			             (#first -> first).
+			             (#last -> last) } asDictionary ] ]
+		on: SyntaxErrorNotification , OCAbortCompilation , OCSemanticError , OCSemanticWarning
+			, ReparseAfterSourceEditing
 		do: [ :ex |
 			message := ex asString.
 			status := ex className ].
@@ -360,11 +368,11 @@ LiterateServer class >> start [
 			'/format/code' -> [ :req | self formatCode: (req at: #source) type: (req at: #type) ];
 		POST: '/completion/method'
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
-		exception: Exception -> [ :ex :req |
-				(ex isKindOf: Halt) ifTrue: [ ex pass ].
-				ZnResponse serverError: (NeoJSONWriter toString: {
-									 (#status -> #fatal).
-									 (#message -> ex asString) } asDictionary) ];
+		" exception: Exception -> [ :ex :req | "
+		" 		(ex isKindOf: Halt) ifTrue: [ ex pass ]. "
+		" 		ZnResponse serverError: (NeoJSONWriter toString: { "
+		" 							 (#status -> #fatal). "
+		" 							 (#message -> ex asString) } asDictionary) ]; "
 		start.
 
 	Started := true

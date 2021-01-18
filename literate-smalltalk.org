@@ -80,6 +80,7 @@
 - [[#test][Test]]
   - [[#eval-codes][eval codes]]
   - [[#ban-some-critiques-rules][ban some critiques rules]]
+  - [[#test-1][test]]
 
 * Introduction
 This is an attemp to write smalltalk codes in org mode,
@@ -388,11 +389,11 @@ start
 			'/format/code' -> [ :req | self formatCode: (req at: #source) type: (req at: #type) ];
 		POST: '/completion/method'
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
-		exception: Exception -> [ :ex :req |
-				(ex isKindOf: Halt) ifTrue: [ ex pass ].
-				ZnResponse serverError: (NeoJSONWriter toString: {
-									 (#status -> #fatal).
-									 (#message -> ex asString) } asDictionary) ];
+		" exception: Exception -> [ :ex :req | "
+		" 		(ex isKindOf: Halt) ifTrue: [ ex pass ]. "
+		" 		ZnResponse serverError: (NeoJSONWriter toString: { "
+		" 							 (#status -> #fatal). "
+		" 							 (#message -> ex asString) } asDictionary) ]; "
 		start.
 
 	Started := true
@@ -926,7 +927,13 @@ evalCode: code openInspector: openInspector
 #+END_SRC
 **** compile method
 #+BEGIN_SRC elisp
-(defun literate-smalltalk-compile-method (class side category code)
+(defface literate-smalltalk-correction-face
+    '((((class mono)) (:inverse-video t :bold t :underline t))
+      (t (:background "LightPink4" :bold t)))
+  "Face used to visualize correction."
+  :group 'literate-smalltalk)
+
+(defun literate-smalltalk-compile-method (class side category code block-info)
   (unless class
     (error "Please specifiy the class of current method!"))
   (unless side
@@ -943,26 +950,37 @@ evalCode: code openInspector: openInspector
          (result (cdr (assoc 'status resp)))
          (message (or (cdr (assoc 'message resp)) ""))
          (critiques (cdr (assoc 'critiques resp)))
-         (critiques-buffer-name "*smalltalk critiques*"))
-    (unless current-prefix-arg
-      (aif (get-buffer-window critiques-buffer-name)
-        (delete-window it)))
-    (when (> (length critiques) 0)
-      (unless current-prefix-arg
-        (split-window))
-      (with-current-buffer (get-buffer-create critiques-buffer-name)
-        (unless current-prefix-arg
-          (delete-region (point-min) (point-max)))
-        (insert "--------------------------------------")
-        (newline)
-        (insert "When compiling '" class "' " side " method '" (cdr (assoc 'selector resp)) "':")
-        (newline)
-        (loop for critique across critiques
-              do (insert critique)
-                 (newline)))
-      (unless (or current-prefix-arg
-                  (get-buffer-window critiques-buffer-name))
-        (switch-to-buffer critiques-buffer-name)))
+         (begin (save-excursion
+                  (goto-char (plist-get block-info :begin))
+                  (forward-line)
+                  (line-beginning-position)))
+         (selector-end-position
+           (save-excursion
+             (goto-char (plist-get block-info :begin))
+             (forward-line)
+             (line-end-position)))
+         (end (save-excursion
+                  (goto-char (plist-get block-info :end))
+                  (forward-line -1)
+                  (line-end-position))))
+    (save-excursion
+      (goto-char begin)
+      (pm-set-buffer (point))
+      (mapcar (lambda (ov)
+                (when (overlay-get ov 'smalltalk-message)
+                  (delete-overlay ov)))
+              (overlays-in begin end))
+      (mapcar (lambda (critique)
+                (let ((ov (make-overlay (if (cdr (assoc 'first critique))
+                                          (1- (+ begin (cdr (assoc 'first critique))))
+                                          begin)
+                                        (if (cdr (assoc 'last critique))
+                                          (+ begin (cdr (assoc 'last critique)))
+                                          selector-end-position))))
+                  (overlay-put ov 'smalltalk-message (cdr (assoc 'message critique)))
+                  (overlay-put ov 'help-echo (cdr (assoc 'message critique)))
+                  (overlay-put ov 'face 'literate-smalltalk-correction-face)))
+              critiques))
     (if (= 0 (length critiques))
       (message "Compile %s %s." result message)
       (message "Compile %s( %d critique) %s." result (length critiques) message))))
@@ -1127,9 +1145,17 @@ compileMethod: className category: cat source: source side: side
 	message := ''.
 	[
 	selector := class compile: source classified: cat.
-	critiques := (class >> selector) critiques collect: [ :each | each asString ] ]
-		on: SyntaxErrorNotification , OCAbortCompilation , OCSemanticError
-			, OCSemanticWarning , ReparseAfterSourceEditing
+	critiques := (class >> selector) critiques collect: [ :critique |
+		             | anchor first last |
+		             anchor := critique sourceAnchor interval.
+		             first := anchor ifNotNil: [ anchor first ].
+		             last := anchor ifNotNil: [ anchor last ].
+		             {
+			             (#message -> critique asString).
+			             (#first -> first).
+			             (#last -> last) } asDictionary ] ]
+		on: SyntaxErrorNotification , OCAbortCompilation , OCSemanticError , OCSemanticWarning
+			, ReparseAfterSourceEditing
 		do: [ :ex |
 			message := ex asString.
 			status := ex className ].
@@ -1171,16 +1197,6 @@ completion: className source: source
 	^ {
 		  (#status -> #success).
 		  (#entities -> entities) } asDictionary
-#+END_SRC
-**** critiques
-#+BEGIN_SRC smalltalk :side class :cat "compile"
-critiques: className method: methodName side: side
-
-	| class critiques |
-	class := self class environment at: className.
-	side = #class ifTrue: [ class := class class ].
-	critiques := (class >> methodName asSymbol) critiques.
-	^ critiques collect: [ :each | each asString ]
 #+END_SRC
 * Code navigation
 The code navigation in pharo is straight-forward, there are only two concepts to lookup, a Class or a method.
@@ -1284,6 +1300,7 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
   (let* ((info (org-babel-get-src-block-info))
          (body (nth 1 info))
          (params (nth 2 info))
+         (block-info (second (org-element-context)))
          (type (if (cdr (assq :type params))
                  (intern (cdr (assq :type params)))
                  (if (search "subclass: #" body)
@@ -1293,13 +1310,19 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
                  (method
                      (literate-smalltalk-method-source
                       (or (cdr (assq :class params))
-                          (org-entry-get (point) "literate-class" t))
+                          (save-current-buffer
+                            ;; have to switch to org buffer to access property value.
+                            (pm-set-buffer (plist-get block-info :begin))
+                            (org-entry-get (point) "literate-class" t)))
                       (literate-smalltalk-method-name-from-source body)
                       (cdr (assq :side params))))
                  (class
                   (literate-smalltalk-class
                    (or (cdr (assq :name params))
-                       (org-entry-get (point) "literate-class" t))))
+                       (save-current-buffer
+                         ;; have to switch to org buffer to access property value.
+                         (pm-set-buffer (plist-get block-info :begin))
+                         (org-entry-get (point) "literate-class" t)))))
                  (t
                   (error "Unknown supported type %s" type))))
          (body (and code (decode-coding-string code 'latin-1-mac))))
@@ -1493,16 +1516,20 @@ Argument PARAMS: the input parameters."
                   'class
                   'method)))
         (side (cdr (assq :side params)))
+        (block-info (second (org-element-context)))
         (code (encode-coding-string body 'latin-1-mac)))
     (case type
       (code (literate-smalltalk-eval code (not (null current-prefix-arg))))
       (method
-        (literate-smalltalk-compile-method
-         (or (cdr (assq :class params))
-             (org-entry-get (point) "literate-class" t))
-         side
-         (cdr (assq :cat params))
-         code))
+       (literate-smalltalk-compile-method
+        (or (cdr (assq :class params))
+            (save-current-buffer
+              ;; have to switch to org buffer to access property value.
+              (pm-set-buffer (plist-get block-info :begin))
+              (org-entry-get (point) "literate-class" t)))
+        side
+        (cdr (assq :cat params))
+        code block-info))
       (class
        (literate-smalltalk-compile-class body))
       (t
@@ -1581,4 +1608,8 @@ y
 		class := Smalltalk at: name ifAbsent: [ nil ].
 		class ifNotNil: [ class enabled: false ]
 		]
+#+END_SRC
+** test
+#+BEGIN_SRC smalltalk :type code
+(LiterateServer class >> #start) critiques.
 #+END_SRC
