@@ -377,23 +377,3 @@ LiterateServer class >> start [
 
 	Started := true
 ]
-
-{ #category : #compile }
-LiterateServer >> evalCode: code openInspector: openInspector [
-
-	| status result |
-	status := #success.
-	result := [ 
-	          OpalCompiler new
-		          source: code;
-		          evaluate ]
-		          on: Exception
-		          do: [ :ex | 
-			          status := #failed.
-			          (ex isKindOf: Halt) ifTrue: [ ex pass ].
-			          result := ex ].
-	evalResults add: result.
-	^ { 
-		  (#message -> result asString).
-		  (#status -> status) } asDictionary
-]
