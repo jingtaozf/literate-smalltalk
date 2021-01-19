@@ -1602,7 +1602,8 @@ y
 #+END_SRC
 ** ban some critiques rules
 #+BEGIN_SRC smalltalk :type code
-{ #RBBadMessageRule. #ReBadMessageRule. #RBImplementedNotSentRule. #ReImplementedNotSentRule.  }
+{ #RBBadMessageRule. #ReBadMessageRule. #RBImplementedNotSentRule. #ReImplementedNotSentRule.
+ #RBUtilityMethodsRule. #ReUtilityMethodsRule}
 	do: [ :name |
 		| class |
 		class := Smalltalk at: name ifAbsent: [ nil ].
@@ -1611,5 +1612,5 @@ y
 #+END_SRC
 ** test
 #+BEGIN_SRC smalltalk :type code
-(LiterateServer class >> #start) critiques.
+IceRepository registeredRepositoryIncludingPackage: IceRepository
 #+END_SRC
