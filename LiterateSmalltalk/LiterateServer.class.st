@@ -178,14 +178,15 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 LiterateServer class >> completion: className source: source [
 
 	| class context entities |
-	class := Smalltalk at: className asSymbol.
+	class := Smalltalk at:
+		         (className ifEmpty: [ #GTPlayground ] ifNotEmpty: [ className asSymbol ]).
 	context := CompletionContext
 		           engine: CompletionEngine new
 		           class: class
 		           source: source
 		           position: source size.
 	entities := context entries collect: [ :each | each contents ].
-	^ {
+	^ { 
 		  (#status -> #success).
 		  (#entities -> entities) } asDictionary
 ]

@@ -1007,7 +1007,7 @@ evalCode: code openInspector: openInspector
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-request-complete-code (class source)
   (literate-smalltalk-request "completion/method"
-                              :data `(("class" . ,class)
+                              :data `(("class" . ,(or class ""))
                                       ("source" . ,(encode-coding-string source 'latin-1-mac)))
                               :type "POST"))
 #+END_SRC
@@ -1187,7 +1187,8 @@ formatCode: source type: type
 completion: className source: source
 
 	| class context entities |
-	class := Smalltalk at: className asSymbol.
+	class := Smalltalk at:
+		         (className ifEmpty: [ #GTPlayground ] ifNotEmpty: [ className asSymbol ]).
 	context := CompletionContext
 		           engine: CompletionEngine new
 		           class: class
