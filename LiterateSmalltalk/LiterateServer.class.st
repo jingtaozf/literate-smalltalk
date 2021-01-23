@@ -191,6 +191,26 @@ LiterateServer class >> completion: className source: source [
 		  (#entities -> entities) } asDictionary
 ]
 
+{ #category : #compile }
+LiterateServer class >> deleteSelector: className name: methodName side: side [
+
+	| class status message |
+	class := Smalltalk at: className asSymbol.
+	class := side = #class
+		         ifTrue: [ class class ]
+		         ifFalse: [ class ].
+	status := #success.
+	message := ''.
+	[ class removeSelector: methodName asSymbol]
+		on: Exception
+		do: [ :ex |
+			message := ex asString.
+			status := ex className ].
+	^ {
+		  (#status -> status).
+		  (#message -> message) } asDictionary
+]
+
 { #category : #utilities }
 LiterateServer class >> elementsString: items [
 
@@ -353,6 +373,8 @@ LiterateServer class >> start [
 		GET: '/method/source'
 			-> [ :req |
 				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
+		GET: '/method/delete' -> [ :req |
+				self deleteSelector: (req at: #class) name: (req at: #name) side: (req at: #side) ];
 		POST: '/eval'
 			-> [ :req | self evalCode: (req at: #code) openInspector: (req at: #inspector) = #true ];
 		POST: '/compile/class' -> [ :req |
@@ -369,12 +391,8 @@ LiterateServer class >> start [
 			'/format/code' -> [ :req | self formatCode: (req at: #source) type: (req at: #type) ];
 		POST: '/completion/method'
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
-		" exception: Exception -> [ :ex :req | "
-		" 		(ex isKindOf: Halt) ifTrue: [ ex pass ]. "
-		" 		ZnResponse serverError: (NeoJSONWriter toString: { "
-		" 							 (#status -> #fatal). "
-		" 							 (#message -> ex asString) } asDictionary) ]; "
-		start.
+		" exception: Exception -> [ :ex :req | "" 		(ex isKindOf: Halt) ifTrue: [ ex pass ]. "" 		ZnResponse serverError: (NeoJSONWriter toString: { "" 							 (#status -> #fatal). "" 							 (#message -> ex asString) } asDictionary) ]; "
+			start.
 
 	Started := true
 ]
