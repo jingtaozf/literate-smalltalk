@@ -1083,7 +1083,7 @@ evalCode: code openInspector: openInspector
                 (or (cdr (assq :class params))
                     (save-current-buffer
                       ;; have to switch to org buffer to access property value.
-                      (pm-set-buffer (plist-get block-info :begin))
+                      (pm-set-buffer (plist-get context-info :begin))
                       (org-entry-get (point) "literate-class" t)))
                 (literate-smalltalk-extract-selector first-line)
                 (cdr (assq :side params)))))
