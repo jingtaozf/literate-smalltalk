@@ -1,5 +1,5 @@
 # -*- encoding:utf-8 Mode: POLY-ORG; tab-width: 2; org-src-preserve-indentation: t; -*- ---
-#+TITLE:  Literate programming tool write smalltalk in org mode.
+#+TITLE: Literate programming tool write smalltalk in org mode.
 #+SubTitle: inspired by shampoo.
 #+OPTIONS: toc:2
 #+Startup: noindent
@@ -16,6 +16,7 @@
 - [[#how-to-do-it-45][How to do it?]]
 - [[#a-minor-mode-for-source-code][a minor mode for source code]]
 - [[#utilities][utilities]]
+  - [[#select-helm-marked-candidates][select helm marked candidates]]
   - [[#forward-to-begin-of-function][forward to begin of function]]
   - [[#region-of-current-symbol][region of current symbol]]
   - [[#current-symbol-at-point][current symbol at point]]
@@ -205,6 +206,23 @@ text-mode "Literate Smalltalk code"
 #+END_SRC
 
 * utilities
+** select helm marked candidates
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-helm-select-list (prompt list)
+  (let* ((list (typecase list
+                 (vector (mapcar 'identity list))
+                 (t list)))
+         (helm-selected-value nil)
+         (helm-source
+           `((name . ,prompt)
+             (candidates . ,list)
+             (action . (lambda (candidate)
+                         (setf helm-selected-value
+                                 (helm-marked-candidates)))))))
+    (helm :sources '(helm-source) :prompt prompt)
+    helm-selected-value))
+#+END_SRC
+
 ** forward to begin of function
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-beginning-of-defun-function (arg)
@@ -438,7 +456,7 @@ elementsString: items
   (cdr (assoc 'namespaces (literate-smalltalk-request "namespaces"))))
 
 (defun literate-smalltalk-select-namespace ()
-  (helm-select-list "Please select a namespace: " (literate-smalltalk-namespaces)))
+  (literate-smalltalk-helm-select-list "namespace" (literate-smalltalk-namespaces)))
 #+END_SRC
 **** pharo
 #+BEGIN_SRC smalltalk :side class :cat "accessing"
@@ -500,7 +518,7 @@ It is slow to build such indexed from remote pharo, let store it to a global var
           (cdr (assoc 'classes (literate-smalltalk-request (concat "classes/" namespace))))))
 
 (defun literate-smalltalk-select-a-class (namespace)
-  (helm-select-list "Please select a namespace: " (literate-smalltalk-classes namespace)))
+  (literate-smalltalk-helm-select-list "Please select a namespace: " (literate-smalltalk-classes namespace)))
 #+END_SRC
 **** Pharo
 #+BEGIN_SRC smalltalk :side class :cat "accessing"
@@ -522,7 +540,7 @@ This bases on [[https://github.com/pharo-project/pharo/blob/Pharo9.0/src/RPackag
   (cdr (assoc 'packages (literate-smalltalk-request "packages"))))
 
 (defun literate-smalltalk-select-package ()
-  (helm-select-list "Please select a package: " (literate-smalltalk-packages)))
+  (literate-smalltalk-helm-select-list "Please select a package: " (literate-smalltalk-packages)))
 #+END_SRC
 **** pharo
 #+BEGIN_SRC smalltalk :side class :cat "accessing"
@@ -539,7 +557,7 @@ packages
   (cdr (assoc 'tags (literate-smalltalk-request (concat "package/tags/" package)))))
 
 (defun literate-smalltalk-select-package-tag (package)
-  (helm-select-list "Please select a package tag: " (literate-smalltalk-package-tags package)))
+  (literate-smalltalk-helm-select-list "Please select a package tag: " (literate-smalltalk-package-tags package)))
 #+END_SRC
 **** pharo
 #+BEGIN_SRC smalltalk :side class :cat "accessing"
@@ -566,7 +584,7 @@ packageTags: packageName
   (cdr (assoc 'methods (literate-smalltalk-request (concat "package/extensions/" package)))))
 
 (defun literate-smalltalk-select-package-extension (package)
-  (helm-select-list "Please select a package extension: " (literate-smalltalk-package-extensions package)))
+  (literate-smalltalk-helm-select-list "Please select a package extension: " (literate-smalltalk-package-extensions package)))
 #+END_SRC
 
 **** pharo
@@ -656,7 +674,7 @@ packageExtensions: packageName
   (cdr (assoc 'result (literate-smalltalk-request (concat "cats/" class)))))
 
 ;; (defun literate-smalltalk-select-a-category (namespace class)
-;;   (helm-select-list "Please select a namespace: " (literate-smalltalk-categories namespace class)))
+;;   (literate-smalltalk-helm-select-list "Please select a namespace: " (literate-smalltalk-categories namespace class)))
 #+END_SRC
 **** get methods of one category
 #+BEGIN_SRC elisp
