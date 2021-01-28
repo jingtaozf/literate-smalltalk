@@ -202,15 +202,9 @@ LiterateServer class >> evalCode: code openInspector: openInspector [
 
 	| status result |
 	status := #success.
-	result := [
-	          OpalCompiler new
+	result := OpalCompiler new
 		          source: code;
-		          evaluate ]
-		          on: Exception
-		          do: [ :ex |
-			          status := #failed.
-			          (ex isKindOf: Halt) ifTrue: [ ex pass ].
-			          result := ex ].
+		          evaluate.
 	evalResults add: result.
 	openInspector ifTrue: [ GTInspector inspect: result ].
 	^ {
