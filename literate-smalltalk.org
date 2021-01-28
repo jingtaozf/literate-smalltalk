@@ -13,7 +13,7 @@
 * Table of Contents                                            :TOC:noexport:
 - [[#introduction][Introduction]]
 - [[#preparation][Preparation]]
-- [[#how-to-do-it-45][How to do it?]]
+- [[#how-to-do-it-56][How to do it?]]
 - [[#a-minor-mode-for-source-code][a minor mode for source code]]
 - [[#utilities][utilities]]
   - [[#select-helm-marked-candidates][select helm marked candidates]]
@@ -95,7 +95,7 @@ You need to install pharo side codes in pharo and start server by the following 
 #+begin_src st
 LiterateServer start.
 #+end_src
-* How to do it? [4/5]
+* How to do it? [5/6]
 We interact with pharo via shampoo, and hack shampoo to fetch/update codes in an org file.
 
 - [X] Find packages's sub category
@@ -106,9 +106,10 @@ We interact with pharo via shampoo, and hack shampoo to fetch/update codes in an
   https://gist.github.com/peteruhnak/e4ba8d52bf4a89c4c9e015bb59b442fd
 - [X] opal compile
 	https://gist.github.com/peteruhnak/e2235e43a25feb6cf0d7196192cf8aea
-- [ ] remove a class method at point
+- [X] remove a class method at point
   MyClass removeFromSystem
   MyClass removeSelector: #foo
+- [ ] raise pharo window when any exception
 - [ ] rename class methods
 	https://github.com/pharo-open-documentation/pharo-wiki/blob/master/General/CoolSnippets.md#rename-programatically-methods
 * a minor mode for source code
@@ -816,15 +817,9 @@ evalCode: code openInspector: openInspector
 
 	| status result |
 	status := #success.
-	result := [
-	          OpalCompiler new
+	result := OpalCompiler new
 		          source: code;
-		          evaluate ]
-		          on: Exception
-		          do: [ :ex |
-			          status := #failed.
-			          (ex isKindOf: Halt) ifTrue: [ ex pass ].
-			          result := ex ].
+		          evaluate.
 	evalResults add: result.
 	openInspector ifTrue: [ GTInspector inspect: result ].
 	^ {
