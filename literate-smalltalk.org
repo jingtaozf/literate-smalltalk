@@ -58,6 +58,9 @@
     - [[#command-to-delete-a-class-method][command to delete a class method]]
     - [[#code-completion-with-company-mode][code completion with company mode]]
     - [[#pharo-2][Pharo]]
+  - [[#release-a-package][release a package]]
+    - [[#emacs-3][Emacs]]
+    - [[#pharo-3][Pharo]]
 - [[#code-navigation][Code navigation]]
   - [[#search-a-pattern-in-a-buffer-and-return-its-position][search a pattern in a buffer and return its position]]
   - [[#find-definition-of-class-in-org-files][find definition of class in org files]]
@@ -78,7 +81,6 @@
     - [[#implementation-1][implementation]]
   - [[#execute-all-source-codes-in-current-header][execute all source codes in current header]]
   - [[#execute-source-codes-in-current-code-block][execute source codes in current code block]]
-- [[#shortcut][shortcut]]
 - [[#release-to-pharo][Release to pharo]]
 - [[#test][Test]]
   - [[#eval-codes][eval codes]]
@@ -406,10 +408,11 @@ start
 		GET: '/method/source'
 			-> [ :req |
 				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		GET: '/method/delete' -> [ :req |
-				self deleteSelector: (req at: #class) name: (req at: #name) side: (req at: #side) ];
+		GET: '/method/remove' -> [ :req |
+				self removeSelector: (req at: #class) name: (req at: #name) side: (req at: #side) ];
 		POST: '/eval'
 			-> [ :req | self evalCode: (req at: #code) openInspector: (req at: #inspector) = #true ];
+		GET: '/remove/class' -> [ :req | self removeClass: (req at: #class)];
 		POST: '/compile/class' -> [ :req |
 				self
 					compileClass: (NeoJSONReader fromString: (req at: #instance))
@@ -1043,17 +1046,24 @@ evalCode: code openInspector: openInspector
                               :type "POST"))
 #+END_SRC
 
+**** API request to delete a class
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-request-delete-class (class)
+  (literate-smalltalk-request
+   "remove/class"
+   :type "GET"
+   :params `(("class" . ,class))))
+#+END_SRC
 **** API request to delete a class method
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-request-delete-class-method (class method side)
   (literate-smalltalk-request
-   "method/delete"
+   "method/remove"
    :type "GET"
    :params `(("class" . ,class)
              ("name" . ,method)
              ("side" . ,side))))
 #+END_SRC
-
 *** command to code format
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-code-format-current-code-block ()
@@ -1086,29 +1096,41 @@ evalCode: code openInspector: openInspector
 
 *** command to delete a class method
 #+BEGIN_SRC elisp
-(defun literate-smalltalk-delete-current-method ()
+(defun literate-smalltalk-delete-current-class-or-method ()
   (interactive)
   (let* ((context-info (second (org-element-context)))
          (info (org-babel-get-src-block-info))
+         (body (nth 1 info))
          (params (nth 2 info))
-         (first-line (save-excursion
-                       (goto-char (plist-get context-info :begin))
-                       (forward-line)
-                       (buffer-substring-no-properties
-                        (line-beginning-position)
-                        (line-end-position))))
-         (resp (literate-smalltalk-request-delete-class-method
-                (or (cdr (assq :class params))
-                    (save-current-buffer
-                      ;; have to switch to org buffer to access property value.
-                      (pm-set-buffer (plist-get context-info :begin))
-                      (org-entry-get (point) "literate-class" t)))
-                (literate-smalltalk-extract-selector first-line)
-                (cdr (assq :side params)))))
+         (type (if (cdr (assq :type params))
+                 (intern (cdr (assq :type params)))
+                 (if (search "subclass: #" body)
+                   'class
+                   'method)))
+         (resp (case type
+                 (method
+                  (literate-smalltalk-request-delete-class-method
+                   (or (cdr (assq :class params))
+                       (save-current-buffer
+                         ;; have to switch to org buffer to access property value.
+                         (pm-set-buffer (plist-get context-info :begin))
+                         (org-entry-get (point) "literate-class" t)))
+                   (literate-smalltalk-extract-selector (save-excursion
+                                                          (goto-char (plist-get context-info :begin))
+                                                          (forward-line)
+                                                          (buffer-substring-no-properties
+                                                           (line-beginning-position)
+                                                           (line-end-position))))
+                   (cdr (assq :side params))))
+                 (class (literate-smalltalk-request-delete-class
+                         (or (cdr (assq :class params))
+                             (save-current-buffer
+                               ;; have to switch to org buffer to access property value.
+                               (pm-set-buffer (plist-get context-info :begin))
+                               (org-entry-get (point) "literate-class" t))))))))
     (message "delete %s(%s)."
              (cdr (assoc 'status resp))
              (cdr (assoc 'message resp)))))
-
 #+END_SRC
 
 *** code completion with company mode
@@ -1188,6 +1210,21 @@ compileClass: instDef class: classDef
 	class class instanceVariableNames: instvars.
 	^ { (#status -> status) } asDictionary
 #+END_SRC
+**** remove a class
+#+BEGIN_SRC smalltalk :side class :cat "compile"
+removeClass: className
+
+	| class |
+	class := Smalltalk at: className asSymbol ifAbsent: nil.
+	class ifNil: [
+		^ {
+			  (#status -> #failed).
+			  (#message -> 'class Not Found') } asDictionary ].
+	class removeFromSystem.
+	^ {
+		  (#status -> #success).
+		  (#message -> '') } asDictionary
+#+END_SRC
 **** compile method
 #+BEGIN_SRC smalltalk :side class :cat "compile"
 compileMethod: className category: cat source: source side: side
@@ -1222,9 +1259,9 @@ compileMethod: className category: cat source: source side: side
 		  (#selector -> selector).
 		  (#critiques -> critiques) } asDictionary
 #+END_SRC
-**** delete a method
+**** remove a method
 #+BEGIN_SRC smalltalk :side class :cat "compile"
-deleteSelector: className name: methodName side: side
+removeSelector: className name: methodName side: side
 
 	| class status message |
 	class := Smalltalk at: className asSymbol.
@@ -1275,6 +1312,24 @@ completion: className source: source
 	^ {
 		  (#status -> #success).
 		  (#entities -> entities) } asDictionary
+#+END_SRC
+** release a package
+*** Emacs
+*** Pharo
+#+BEGIN_SRC smalltalk :side class :cat "compile"
+release: packageName
+
+	| iceRepository location |
+	iceRepository := IceRepository registeredRepositoryIncludingPackage:
+		                 (RPackageOrganizer default packageNamed: packageName asSymbol).
+	location := iceRepository
+		            ifNil: [
+			            | spec |
+			            spec := (Metacello image baseline: packageName) list first repositories
+				                    list first spec.
+			            "only support spec format with local path : gitlocal:///dir1/dir2"
+			            (spec description allButFirst: spec type size + '://' size) asFileReference ]
+		            ifNotNil: [ iceRepository location ].
 #+END_SRC
 * Code navigation
 The code navigation in pharo is straight-forward, there are only two concepts to lookup, a Class or a method.
@@ -1644,19 +1699,6 @@ override our own compilation report.
       (goto-char begin)
       (pm-set-buffer (point))
       (org-babel-execute-src-block-maybe))))
-#+END_SRC
-
-* shortcut
-#+BEGIN_SRC elisp
-(define-quick-choice (literate-smalltalk-code-mode)
-    ("package of class" literate-smalltalk-namespace-of-current-symbol)
-  ("execute codes" literate-smalltalk-execute-current-code-block)
-  ("compile codes" literate-smalltalk-execute-current-code-block)
-  ("Compile codes in current header" literate-smalltalk-execute-current-header)
-  ("delete current class method" literate-smalltalk-delete-current-method)
-  ("format code" literate-smalltalk-code-format-current-code-block)
-  ("update codes" literate-smalltalk-update-source)
-  )
 #+END_SRC
 
 * Release to pharo

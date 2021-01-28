@@ -191,26 +191,6 @@ LiterateServer class >> completion: className source: source [
 		  (#entities -> entities) } asDictionary
 ]
 
-{ #category : #compile }
-LiterateServer class >> deleteSelector: className name: methodName side: side [
-
-	| class status message |
-	class := Smalltalk at: className asSymbol.
-	class := side = #class
-		         ifTrue: [ class class ]
-		         ifFalse: [ class ].
-	status := #success.
-	message := ''.
-	[ class removeSelector: methodName asSymbol]
-		on: Exception
-		do: [ :ex |
-			message := ex asString.
-			status := ex className ].
-	^ {
-		  (#status -> status).
-		  (#message -> message) } asDictionary
-]
-
 { #category : #utilities }
 LiterateServer class >> elementsString: items [
 
@@ -329,6 +309,41 @@ LiterateServer class >> packages [
 		  (#packages -> RPackageOrganizer default packageNames) } asDictionary
 ]
 
+{ #category : #compile }
+LiterateServer class >> removeClass: className [
+
+	| class |
+	class := Smalltalk at: className asSymbol ifAbsent: nil.
+	class ifNil: [
+		^ {
+			  (#status -> #failed).
+			  (#message -> 'class Not Found') } asDictionary ].
+	class removeFromSystem.
+	^ {
+		  (#status -> #success).
+		  (#message -> '') } asDictionary
+]
+
+{ #category : #compile }
+LiterateServer class >> removeSelector: className name: methodName side: side [
+
+	| class status message |
+	class := Smalltalk at: className asSymbol.
+	class := side = #class
+		         ifTrue: [ class class ]
+		         ifFalse: [ class ].
+	status := #success.
+	message := ''.
+	[ class removeSelector: methodName asSymbol]
+		on: Exception
+		do: [ :ex |
+			message := ex asString.
+			status := ex className ].
+	^ {
+		  (#status -> status).
+		  (#message -> message) } asDictionary
+]
+
 { #category : #accessing }
 LiterateServer class >> server [
 	"returns teapot instance"
@@ -373,10 +388,11 @@ LiterateServer class >> start [
 		GET: '/method/source'
 			-> [ :req |
 				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		GET: '/method/delete' -> [ :req |
-				self deleteSelector: (req at: #class) name: (req at: #name) side: (req at: #side) ];
+		GET: '/method/remove' -> [ :req |
+				self removeSelector: (req at: #class) name: (req at: #name) side: (req at: #side) ];
 		POST: '/eval'
 			-> [ :req | self evalCode: (req at: #code) openInspector: (req at: #inspector) = #true ];
+		GET: '/remove/class' -> [ :req | self removeClass: (req at: #class)];
 		POST: '/compile/class' -> [ :req |
 				self
 					compileClass: (NeoJSONReader fromString: (req at: #instance))
