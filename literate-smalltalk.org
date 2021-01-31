@@ -8,13 +8,23 @@
 #+LATEX_HEADER: \lstdefinelanguage{elisp}[]{lisp} {}
 #+LATEX_HEADER: \lstloadlanguages{elisp}
 #+PROPERTY: header-args
+#+PROPERTY: literate-header-arguments :type code
 #+PROPERTY: literate-load yes
 #+PROPERTY: literate-class LiterateServer
 * Table of Contents                                            :TOC:noexport:
 - [[#introduction][Introduction]]
 - [[#preparation][Preparation]]
-- [[#how-to-do-it-56][How to do it?]]
+- [[#how-to-do-it-68][How to do it?]]
 - [[#a-minor-mode-for-source-code][a minor mode for source code]]
+  - [[#font-lock-keywords][font lock keywords]]
+    - [[#binary-selectors][binary selectors]]
+    - [[#basic-font-lock-keywords][basic font lock keywords]]
+    - [[#level-1-smalltalk-font-locking-keywords][Level 1 Smalltalk font-locking keywords]]
+    - [[#level-2-smalltalk-font-locking-keywords][Level 2 Smalltalk font-locking keywords]]
+    - [[#font-lock-keywords-list][font lock keywords list]]
+  - [[#syntax-table][syntax table]]
+  - [[#mode-definition][mode definition]]
+  - [[#add-to-auto-mode-alist][add to auto mode alist]]
 - [[#utilities][utilities]]
   - [[#select-helm-marked-candidates][select helm marked candidates]]
   - [[#forward-to-begin-of-function][forward to begin of function]]
@@ -95,7 +105,7 @@ You need to install pharo side codes in pharo and start server by the following 
 #+begin_src st
 LiterateServer start.
 #+end_src
-* How to do it? [5/6]
+* How to do it? [6/8]
 We interact with pharo via shampoo, and hack shampoo to fetch/update codes in an org file.
 
 - [X] Find packages's sub category
@@ -112,12 +122,21 @@ We interact with pharo via shampoo, and hack shampoo to fetch/update codes in an
 - [ ] raise pharo window when any exception
 - [ ] rename class methods
 	https://github.com/pharo-open-documentation/pharo-wiki/blob/master/General/CoolSnippets.md#rename-programatically-methods
+- [X] playground/REPL in Emacs
+  StPlaygroundInteractionModel
 * a minor mode for source code
+:PROPERTIES:
+:literate-lang: elisp
+:END:
 inspired from shampoo-code-mode
+** font lock keywords
+*** binary selectors
 #+BEGIN_SRC elisp
 (defconst literate-smalltalk-smalltalk-binsel "\\([-+*/~,<>=&?]\\{1,2\\}\\|:=\\|||\\)"
 "Smalltalk binary selectors")
-
+#+END_SRC
+*** basic font lock keywords
+#+BEGIN_SRC elisp
 (defconst literate-smalltalk-smalltalk-font-lock-keywords
 (list
 '("#[A-z][A-z0-9_]*"          . font-lock-constant-face)
@@ -127,11 +146,16 @@ inspired from shampoo-code-mode
 '("\\<[A-Z]\\sw*\\>"          . font-lock-type-face)
 '("[0-9]+"                    . font-lock-constant-face))
 "Basic Smalltalk keywords font-locking")
-
+#+END_SRC
+*** Level 1 Smalltalk font-locking keywords
+#+BEGIN_SRC elisp
 (defconst literate-smalltalk-smalltalk-font-lock-keywords-1
 literate-smalltalk-smalltalk-font-lock-keywords
 "Level 1 Smalltalk font-locking keywords")
+#+END_SRC
 
+*** Level 2 Smalltalk font-locking keywords
+#+BEGIN_SRC elisp
 (defconst literate-smalltalk-smalltalk-font-lock-keywords-2
 (append literate-smalltalk-smalltalk-font-lock-keywords-1
 (list
@@ -141,12 +165,16 @@ literate-smalltalk-smalltalk-font-lock-keywords
 		'(" |"               . font-lock-type-face)
 		'("<.*>"             . font-lock-builtin-face)))
 "Level 2 Smalltalk font-locking keywords")
-
+#+END_SRC
+*** font lock keywords list
+#+BEGIN_SRC elisp
 (defconst literate-smalltalk-smalltalk-font-lock-keywords-list
 '((literate-smalltalk-smalltalk-font-lock-keywords
 		literate-smalltalk-smalltalk-font-lock-keywords-1
 		literate-smalltalk-smalltalk-font-lock-keywords-2)))
-
+#+END_SRC
+** syntax table
+#+BEGIN_SRC elisp
 (defvar literate-smalltalk-smalltalk-mode-syntax-table
 (let ((table (make-syntax-table)))
 ;; Make sure A-z0-9 are set to "w   " for completeness
@@ -196,18 +224,23 @@ literate-smalltalk-smalltalk-font-lock-keywords
 (modify-syntax-entry ?,  ".   " table) ; concat
 table)
 "Syntax table used by Smalltalk mode")
-
-(define-derived-mode literate-smalltalk-code-mode
-text-mode "Literate Smalltalk code"
-(set (make-local-variable 'font-lock-defaults)
-				literate-smalltalk-smalltalk-font-lock-keywords-list)
-(set (make-local-variable 'comment-start) "\"")
-(set (make-local-variable 'comment-end) "\"")
-(set-syntax-table literate-smalltalk-smalltalk-mode-syntax-table))
-
-(setq auto-mode-alist (append '(("\\.st\\'" . literate-smalltalk-code-mode)) auto-mode-alist))
 #+END_SRC
 
+** mode definition
+#+BEGIN_SRC elisp
+(define-derived-mode literate-smalltalk-code-mode
+    text-mode "Literate Smalltalk code"
+    (set (make-local-variable 'font-lock-defaults)
+				 literate-smalltalk-smalltalk-font-lock-keywords-list)
+    (set (make-local-variable 'comment-start) "\"")
+    (set (make-local-variable 'comment-end) "\"")
+    (set (make-local-variable 'case-fold-search) nil)
+    (set-syntax-table literate-smalltalk-smalltalk-mode-syntax-table))
+#+END_SRC
+** add to auto mode alist
+#+BEGIN_SRC elisp
+(setq auto-mode-alist (append '(("\\.st\\'" . literate-smalltalk-code-mode)) auto-mode-alist))
+#+END_SRC
 * utilities
 ** select helm marked candidates
 #+BEGIN_SRC elisp
@@ -357,7 +390,7 @@ The REST Server for LiterateSmalltalk.
 "
 Object subclass: #LiterateServer
     instanceVariableNames: ''
-    classVariableNames: 'Server Started evalResults'
+    classVariableNames: 'Server Started interactionModel'
     package: 'LiterateSmalltalk'
 ----------------------
 LiterateServer class
@@ -385,7 +418,6 @@ start
 	| teapot |
 	"extra check so that we don't close a Pool which wasn't open"
 	Started ifNotNil: [ Server stop ].
-	evalResults := OrderedCollection new.
 	teapot := Teapot configure: {
 			          (#defaultOutput -> #json).
 			          (#port -> 9092).
@@ -413,7 +445,8 @@ start
 				self removeSelector: (req at: #class) name: (req at: #name) side: (req at: #side) ];
 		POST: '/eval'
 			-> [ :req | self evalCode: (req at: #code) openInspector: (req at: #inspector) = #true ];
-		GET: '/remove/class' -> [ :req | self removeClass: (req at: #class)];
+		GET: '/eval/bindings' -> [ :req | self evalBindings ];
+		GET: '/remove/class' -> [ :req | self removeClass: (req at: #class) ];
 		POST: '/compile/class' -> [ :req |
 				self
 					compileClass: (NeoJSONReader fromString: (req at: #instance))
@@ -430,7 +463,7 @@ start
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
 		" exception: Exception -> [ :ex :req | "" 		(ex isKindOf: Halt) ifTrue: [ ex pass ]. "" 		ZnResponse serverError: (NeoJSONWriter toString: { "" 							 (#status -> #fatal). "" 							 (#message -> ex asString) } asDictionary) ]; "
 			start.
-
+	interactionModel := StPlaygroundInteractionModel new owner: StPlaygroundPagePresenter new.
 	Started := true
 #+END_SRC
 ** utils
@@ -798,33 +831,60 @@ methodSource: className name: methodName side: side
 * Compile
 ** eval code
 *** Emacs
+**** eval
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-eval (code inspector-p)
   (let ((resp (literate-smalltalk-request
-                                     "eval"
-                                     :type "POST"
-                                     :data `(("code" . ,code)
-                                             ("inspector" . ,(if inspector-p
-                                                               "true"
-                                                               "false"))))))
+               "eval"
+               :type "POST"
+               :data `(("code" . ,code)
+                       ("inspector" . ,(if inspector-p
+                                         "true"
+                                         "false"))))))
     (if (string= "success" (cdr (assoc 'status resp)))
       (cdr (assoc 'message resp))
       (error "Failed to eval code:'%s'!" (cdr (assoc 'message resp))))))
 #+END_SRC
+**** local bindings
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-eval-bindings ()
+  (interactive)
+  (let ((resp (literate-smalltalk-request "eval/bindings")))
+    (if (string= "success" (cdr (assoc 'status resp)))
+      (cdr (assoc 'message resp))
+      (error "Failed to list bindings:'%s'!" (cdr (assoc 'message resp))))))
+#+END_SRC
+
 *** Pharo
+**** eval a code text
 #+BEGIN_SRC smalltalk :side class :cat "compile"
 evalCode: code openInspector: openInspector
 
-	| status result |
+	| status result receiver evaluationContext |
 	status := #success.
-	result := OpalCompiler new
+	receiver := interactionModel doItReceiver.
+	evaluationContext := interactionModel doItContext.
+	result := receiver class compiler
 		          source: code;
+		          context: evaluationContext;
+		          receiver: receiver;
+		          requestor: interactionModel;
+		          failBlock: [ ^ nil ];
 		          evaluate.
-	evalResults add: result.
+
 	openInspector ifTrue: [ GTInspector inspect: result ].
 	^ {
 		  (#message -> result asString).
 		  (#status -> status) } asDictionary
+#+END_SRC
+**** list bindings of all evaluated codes.
+#+BEGIN_SRC smalltalk :side class :cat "compile"
+evalBindings
+
+	GTInspector inspect: interactionModel bindings.
+	^ {
+		  (#status -> #success).
+		  (#message -> 'Inspector has been opened.') } asDictionary
 #+END_SRC
 ** compile
 *** Emacs

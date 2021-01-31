@@ -7,7 +7,7 @@ Class {
 	#classVars : [
 		'Server',
 		'Started',
-		'evalResults'
+		'interactionModel'
 	],
 	#category : #LiterateSmalltalk
 }
@@ -198,16 +198,31 @@ LiterateServer class >> elementsString: items [
 ]
 
 { #category : #compile }
+LiterateServer class >> evalBindings [
+
+	GTInspector inspect: interactionModel bindings.
+	^ { 
+		  (#status -> #success).
+		  (#message -> 'Inspector has been opened.') } asDictionary
+]
+
+{ #category : #compile }
 LiterateServer class >> evalCode: code openInspector: openInspector [
 
-	| status result |
+	| status result receiver evaluationContext |
 	status := #success.
-	result := OpalCompiler new
+	receiver := interactionModel doItReceiver.
+	evaluationContext := interactionModel doItContext.
+	result := receiver class compiler
 		          source: code;
+		          context: evaluationContext;
+		          receiver: receiver;
+		          requestor: interactionModel;
+		          failBlock: [ ^ nil ];
 		          evaluate.
-	evalResults add: result.
+
 	openInspector ifTrue: [ GTInspector inspect: result ].
-	^ {
+	^ { 
 		  (#message -> result asString).
 		  (#status -> status) } asDictionary
 ]
@@ -358,8 +373,7 @@ LiterateServer class >> start [
 	| teapot |
 	"extra check so that we don't close a Pool which wasn't open"
 	Started ifNotNil: [ Server stop ].
-	evalResults := OrderedCollection new.
-	teapot := Teapot configure: {
+	teapot := Teapot configure: { 
 			          (#defaultOutput -> #json).
 			          (#port -> 9092).
 			          (#debugMode -> true).
@@ -377,21 +391,22 @@ LiterateServer class >> start [
 		GET: '/class/<class>' -> [ :req | self classDef: (req at: #class) ];
 		GET: '/cats/<class>' -> [ :req | self classCats: (req at: #class) ];
 		GET: '/cat/methods'
-			-> [ :req |
+			-> [ :req | 
 				self catMethods: (req at: #class) category: (req at: #cat) side: (req at: #side) ];
 		GET: '/method/source'
-			-> [ :req |
+			-> [ :req | 
 				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		GET: '/method/remove' -> [ :req |
+		GET: '/method/remove' -> [ :req | 
 				self removeSelector: (req at: #class) name: (req at: #name) side: (req at: #side) ];
 		POST: '/eval'
 			-> [ :req | self evalCode: (req at: #code) openInspector: (req at: #inspector) = #true ];
-		GET: '/remove/class' -> [ :req | self removeClass: (req at: #class)];
-		POST: '/compile/class' -> [ :req |
+		GET: '/eval/bindings' -> [ :req | self evalBindings ];
+		GET: '/remove/class' -> [ :req | self removeClass: (req at: #class) ];
+		POST: '/compile/class' -> [ :req | 
 				self
 					compileClass: (NeoJSONReader fromString: (req at: #instance))
 					class: (NeoJSONReader fromString: (req at: #class)) ];
-		POST: '/compile/method' -> [ :req |
+		POST: '/compile/method' -> [ :req | 
 				self
 					compileMethod: (req at: #class)
 					category: (req at: #category)
@@ -403,6 +418,6 @@ LiterateServer class >> start [
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
 		" exception: Exception -> [ :ex :req | "" 		(ex isKindOf: Halt) ifTrue: [ ex pass ]. "" 		ZnResponse serverError: (NeoJSONWriter toString: { "" 							 (#status -> #fatal). "" 							 (#message -> ex asString) } asDictionary) ]; "
 			start.
-
+	interactionModel := StPlaygroundInteractionModel new owner: StPlaygroundPagePresenter new.
 	Started := true
 ]
