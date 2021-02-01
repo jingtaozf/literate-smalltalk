@@ -8,7 +8,6 @@
 #+LATEX_HEADER: \lstdefinelanguage{elisp}[]{lisp} {}
 #+LATEX_HEADER: \lstloadlanguages{elisp}
 #+PROPERTY: header-args
-#+PROPERTY: literate-header-arguments :type code
 #+PROPERTY: literate-load yes
 #+PROPERTY: literate-class LiterateServer
 * Table of Contents                                            :TOC:noexport:
@@ -43,6 +42,9 @@
     - [[#reader][reader]]
     - [[#writer][writer]]
   - [[#routes][routes]]
+  - [[#log-messages-in-transcript][log messages in Transcript]]
+    - [[#emacs][Emacs]]
+    - [[#pharo][Pharo]]
   - [[#utils][utils]]
     - [[#asstringarray][asStringArray:]]
     - [[#elementsstring][elementsString]]
@@ -56,21 +58,21 @@
     - [[#a-list-of-classes-for-a-package-tag][a list of classes for a package tag]]
     - [[#a-list-of-package-extensions][a list of package extensions.]]
   - [[#class][class]]
-    - [[#emacs][Emacs]]
-    - [[#pharo][Pharo]]
-- [[#compile][Compile]]
-  - [[#eval-code][eval code]]
     - [[#emacs-1][Emacs]]
     - [[#pharo-1][Pharo]]
-  - [[#compile-1][compile]]
+- [[#compile][Compile]]
+  - [[#eval-code][eval code]]
     - [[#emacs-2][Emacs]]
+    - [[#pharo-2][Pharo]]
+  - [[#compile-1][compile]]
+    - [[#emacs-3][Emacs]]
     - [[#command-to-code-format][command to code format]]
     - [[#command-to-delete-a-class-method][command to delete a class method]]
     - [[#code-completion-with-company-mode][code completion with company mode]]
-    - [[#pharo-2][Pharo]]
-  - [[#release-a-package][release a package]]
-    - [[#emacs-3][Emacs]]
     - [[#pharo-3][Pharo]]
+  - [[#release-a-package][release a package]]
+    - [[#emacs-4][Emacs]]
+    - [[#pharo-4][Pharo]]
 - [[#code-navigation][Code navigation]]
   - [[#search-a-pattern-in-a-buffer-and-return-its-position][search a pattern in a buffer and return its position]]
   - [[#find-definition-of-class-in-org-files][find definition of class in org files]]
@@ -390,7 +392,7 @@ The REST Server for LiterateSmalltalk.
 "
 Object subclass: #LiterateServer
     instanceVariableNames: ''
-    classVariableNames: 'Server Started interactionModel'
+    classVariableNames: 'Server Started interactionModel transcriptLogStream'
     package: 'LiterateSmalltalk'
 ----------------------
 LiterateServer class
@@ -418,6 +420,8 @@ start
 	| teapot |
 	"extra check so that we don't close a Pool which wasn't open"
 	Started ifNotNil: [ Server stop ].
+	Transcript removeDependent: self.
+	Transcript addDependent: self.
 	teapot := Teapot configure: {
 			          (#defaultOutput -> #json).
 			          (#port -> 9092).
@@ -466,6 +470,28 @@ start
 	interactionModel := StPlaygroundInteractionModel new owner: StPlaygroundPagePresenter new.
 	Started := true
 #+END_SRC
+** log messages in Transcript
+We will just output it to a log file, so we can monitor them in a Emacs buffer.
+*** Emacs
+#+BEGIN_SRC elisp
+(defvar literate-smalltalk-transcript-log-file "~/.cache/literate-smalltalk/transcript.log")
+(make-directory (file-name-directory literate-smalltalk-transcript-log-file) t)
+#+END_SRC
+
+*** Pharo
+An interface to update of Transcript.
+#+BEGIN_SRC smalltalk :side class :cat updating
+update: aChange
+
+	aChange = #appendEntry ifFalse: [ ^ self ].
+	transcriptLogStream ifNil: [
+		transcriptLogStream := ((OSEnvironment current at: 'HOME')
+		                        , '/.cache/literate-smalltalk/transcript.log') asFileReference
+			                       writeStream.
+		].
+	transcriptLogStream print: Transcript contents.
+	transcriptLogStream flush
+#+END_SRC
 ** utils
 *** asStringArray:
 Many reflection methods return different results in various dialects.
@@ -484,6 +510,7 @@ elementsString: items
 
 	^ items inject: '' into: [ :acc :each | acc , each asString , ' ' ]
 #+END_SRC
+
 * Query
 ** namespace
 *** namespaces
@@ -1051,7 +1078,8 @@ evalBindings
          (end (save-excursion
                   (goto-char (plist-get block-info :end))
                   (forward-line -1)
-                  (line-end-position))))
+                  (line-end-position)))
+         (overlay-in-first-line nil))
     (save-excursion
       (goto-char begin)
       (pm-set-buffer (point))
@@ -1060,14 +1088,19 @@ evalBindings
                   (delete-overlay ov)))
               (overlays-in begin end))
       (mapcar (lambda (critique)
-                (let ((ov (make-overlay (if (cdr (assoc 'first critique))
-                                          (1- (+ begin (cdr (assoc 'first critique))))
-                                          begin)
-                                        (if (cdr (assoc 'last critique))
-                                          (+ begin (cdr (assoc 'last critique)))
-                                          selector-end-position))))
-                  (overlay-put ov 'smalltalk-message (cdr (assoc 'message critique)))
-                  (overlay-put ov 'help-echo (cdr (assoc 'message critique)))
+                ;; there may have multiple critiques for a method without range, we all put them in first line.
+                (let* ((original-message nil)
+                       (ov (if (and (cdr (assoc 'first critique))
+                                    (null (overlays-in begin selector-end-position)))
+                             (make-overlay (+ begin (cdr (assoc 'first critique)))
+                                           (+ begin (cdr (assoc 'last critique))))
+                             (if overlay-in-first-line
+                               (prog1 overlay-in-first-line
+                                      (setf original-message
+                                              (concat (overlay-get overlay-in-first-line 'smalltalk-message) "\n")))
+                               (setf overlay-in-first-line (make-overlay begin selector-end-position))))))
+                  (overlay-put ov 'smalltalk-message (concat original-message (cdr (assoc 'message critique))))
+                  (overlay-put ov 'help-echo (concat original-message (cdr (assoc 'message critique))))
                   (overlay-put ov 'face 'literate-smalltalk-correction-face)))
               critiques))
     (if (= 0 (length critiques))
