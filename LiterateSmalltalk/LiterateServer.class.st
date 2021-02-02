@@ -19,6 +19,15 @@ LiterateServer class >> asStringArray: items [
 	^ (items collect: [ :each | each asString ]) asArray
 ]
 
+{ #category : #utilities }
+LiterateServer class >> bringToFront [
+
+	"a way to bring pharo window to front"
+
+	Display toggleFullscreen.
+	Display toggleFullscreen.
+]
+
 { #category : #accessing }
 LiterateServer class >> catMethods: className category: cat side: side [
 
@@ -201,8 +210,9 @@ LiterateServer class >> elementsString: items [
 { #category : #compile }
 LiterateServer class >> evalBindings [
 
+	self bringToFront.
 	GTInspector inspect: interactionModel bindings.
-	^ { 
+	^ {
 		  (#status -> #success).
 		  (#message -> 'Inspector has been opened.') } asDictionary
 ]
@@ -222,8 +232,10 @@ LiterateServer class >> evalCode: code openInspector: openInspector [
 		          failBlock: [ ^ nil ];
 		          evaluate.
 
-	openInspector ifTrue: [ GTInspector inspect: result ].
-	^ { 
+	openInspector ifTrue: [
+		self bringToFront.
+		GTInspector inspect: result ].
+	^ {
 		  (#message -> result asString).
 		  (#status -> status) } asDictionary
 ]
@@ -376,7 +388,7 @@ LiterateServer class >> start [
 	Started ifNotNil: [ Server stop ].
 	Transcript removeDependent: self.
 	Transcript addDependent: self.
-	teapot := Teapot configure: { 
+	teapot := Teapot configure: {
 			          (#defaultOutput -> #json).
 			          (#port -> 9092).
 			          (#debugMode -> true).
@@ -394,22 +406,22 @@ LiterateServer class >> start [
 		GET: '/class/<class>' -> [ :req | self classDef: (req at: #class) ];
 		GET: '/cats/<class>' -> [ :req | self classCats: (req at: #class) ];
 		GET: '/cat/methods'
-			-> [ :req | 
+			-> [ :req |
 				self catMethods: (req at: #class) category: (req at: #cat) side: (req at: #side) ];
 		GET: '/method/source'
-			-> [ :req | 
+			-> [ :req |
 				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		GET: '/method/remove' -> [ :req | 
+		GET: '/method/remove' -> [ :req |
 				self removeSelector: (req at: #class) name: (req at: #name) side: (req at: #side) ];
 		POST: '/eval'
 			-> [ :req | self evalCode: (req at: #code) openInspector: (req at: #inspector) = #true ];
 		GET: '/eval/bindings' -> [ :req | self evalBindings ];
 		GET: '/remove/class' -> [ :req | self removeClass: (req at: #class) ];
-		POST: '/compile/class' -> [ :req | 
+		POST: '/compile/class' -> [ :req |
 				self
 					compileClass: (NeoJSONReader fromString: (req at: #instance))
 					class: (NeoJSONReader fromString: (req at: #class)) ];
-		POST: '/compile/method' -> [ :req | 
+		POST: '/compile/method' -> [ :req |
 				self
 					compileMethod: (req at: #class)
 					category: (req at: #category)
@@ -419,12 +431,10 @@ LiterateServer class >> start [
 			'/format/code' -> [ :req | self formatCode: (req at: #source) type: (req at: #type) ];
 		POST: '/completion/method'
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
-		exception: Exception -> [ :ex :req | 
-				Display fullscreenMode: true.
-				"a way to bring pharo window to front"
-				Display fullscreenMode: false.
+		exception: Exception -> [ :ex :req |
+				self bringToFront.
 				ex pass.
-				ZnResponse serverError: (NeoJSONWriter toString: { 
+				ZnResponse serverError: (NeoJSONWriter toString: {
 									 (#status -> #fatal).
 									 (#message -> ex asString) } asDictionary) ];
 		start.

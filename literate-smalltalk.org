@@ -48,6 +48,7 @@
   - [[#utils][utils]]
     - [[#asstringarray][asStringArray:]]
     - [[#elementsstring][elementsString]]
+    - [[#bringtofront][bringToFront]]
 - [[#query][Query]]
   - [[#namespace][namespace]]
     - [[#namespaces][namespaces]]
@@ -466,9 +467,7 @@ start
 		POST: '/completion/method'
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
 		exception: Exception -> [ :ex :req |
-				Display fullscreenMode: true.
-				"a way to bring pharo window to front"
-				Display fullscreenMode: false.
+				self bringToFront.
 				ex pass.
 				ZnResponse serverError: (NeoJSONWriter toString: {
 									 (#status -> #fatal).
@@ -517,7 +516,15 @@ elementsString: items
 
 	^ items inject: '' into: [ :acc :each | acc , each asString , ' ' ]
 #+END_SRC
+*** bringToFront
+#+BEGIN_SRC smalltalk :side class :cat "utilities"
+bringToFront
 
+	"a way to bring pharo window to front"
+
+	Display toggleFullscreen.
+	Display toggleFullscreen.
+#+END_SRC
 * Query
 ** namespace
 *** namespaces
@@ -906,7 +913,9 @@ evalCode: code openInspector: openInspector
 		          failBlock: [ ^ nil ];
 		          evaluate.
 
-	openInspector ifTrue: [ GTInspector inspect: result ].
+	openInspector ifTrue: [
+		self bringToFront.
+		GTInspector inspect: result ].
 	^ {
 		  (#message -> result asString).
 		  (#status -> status) } asDictionary
@@ -915,6 +924,7 @@ evalCode: code openInspector: openInspector
 #+BEGIN_SRC smalltalk :side class :cat "compile"
 evalBindings
 
+	self bringToFront.
 	GTInspector inspect: interactionModel bindings.
 	^ {
 		  (#status -> #success).
