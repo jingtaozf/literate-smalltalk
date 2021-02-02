@@ -465,8 +465,15 @@ start
 			'/format/code' -> [ :req | self formatCode: (req at: #source) type: (req at: #type) ];
 		POST: '/completion/method'
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
-		" exception: Exception -> [ :ex :req | "" 		(ex isKindOf: Halt) ifTrue: [ ex pass ]. "" 		ZnResponse serverError: (NeoJSONWriter toString: { "" 							 (#status -> #fatal). "" 							 (#message -> ex asString) } asDictionary) ]; "
-			start.
+		exception: Exception -> [ :ex :req |
+				Display fullscreenMode: true.
+				"a way to bring pharo window to front"
+				Display fullscreenMode: false.
+				ex pass.
+				ZnResponse serverError: (NeoJSONWriter toString: {
+									 (#status -> #fatal).
+									 (#message -> ex asString) } asDictionary) ];
+		start.
 	interactionModel := StPlaygroundInteractionModel new owner: StPlaygroundPagePresenter new.
 	Started := true
 #+END_SRC
