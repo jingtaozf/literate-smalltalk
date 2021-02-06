@@ -1,0 +1,161 @@
+# -*- encoding:utf-8 Mode: POLY-ORG;  -*- ---
+#+Startup: noindent
+#+PROPERTY:    header-args        :results silent   :eval no-export   :comments org
+#+OPTIONS:     num:nil toc:nil todo:nil tasks:nil tags:nil
+#+OPTIONS:     skip:nil author:nil email:nil creator:nil timestamp:t
+#+INFOJS_OPT:  view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
+* Table of Contents                                                     :TOC:
+- [[#introduction][Introduction]]
+- [[#install][Install]]
+  - [[#in-pharo][in Pharo]]
+  - [[#in-emacs][in Emacs]]
+- [[#tutorial][Tutorial]]
+  - [[#preparing-an-org-file][Preparing an org file]]
+  - [[#import-source-codes-of-some-packages][import source codes of some packages]]
+  - [[#compile-a-code-block][compile a code block]]
+  - [[#format-code-block][format code block]]
+  - [[#show-suggestions][show suggestions]]
+  - [[#delete-current-class-or-method][delete current class or method]]
+  - [[#update-source-code-block-from-pharo][update source code block from Pharo]]
+- [[#references][References]]
+
+* Introduction
+[[https://github.com/jingtaozf/literate-smalltalk][literate-smalltalk]] is an Emacs lisp library and a Smalltalk library to provide an easy way to use [[http://www.literateprogramming.com/][literal programming]] in Smalltalk.
+
+[[https://pharo.org/][Pharo]] is a pure object-oriented programming language and a powerful environment, focused on simplicity and immediate feedback.
+It also provides a markdown syntax [[https://github.com/pillar-markup/MicroDown][MicroDown]] for its class comment.
+
+From the point of my view, Pharo is a wonderful IDE for development, except that its native editor.
+
+So here is a new literate programming environment for Pharo in Emacs org mode.
+
+It setup a HTTP server in Pharo, so Emacs can interact with Pharo to
+- fetch packages, classes, method source
+- compile class/methods
+- format code block
+- show suggestions, etc.
+
+In Emacs, we use an org file as both documentation and codes, and Emacs lisp library [[https://polymode.github.io/][polymode]] to enable native source code block in org mode.
+In each code block, you can compile, format code, ask for suggestions, show compiling critiques instantly, just like it is inside Pharo.
+
+This library contains the following files:
+- [[./literate-smalltalk.org]] \\
+  The implementation and documentation of both Emacs side and Pharo side.
+- [[./BaselineOfLiterateSmalltalk/BaselineOfLiterateSmalltalk.class.st][BaselineOfLiterateSmalltalk.class.st]] \\
+  The tangled codes of Base line for Pharo side package.
+
+- [[./LiterateSmalltalk/LiterateServer.class.st][LiterateServer.class.st]] \\
+  The tangled codes of Pharo side package.
+- [[./readme.org]] \\
+  This file contains introduction about how to do literate Smalltalk in an org file.
+
+Currently it only tests in [[https://github.com/pharo-project/pharo][Pharo]] but other Smalltalk dialects should be easy to adopt.
+
+* Install
+** in Pharo
+You can add this package via [[https://github.com/Metacello/metacello][metacello]] by adding a file named as =literate-server.st= in Pharo's configuration directory,
+For Pharo 9.0 it is in =~/.config/Pharo/9.0=, the file content can be like this:
+#+BEGIN_SRC smalltalk :load no
+StartupPreferencesLoader default executeAtomicItems: { (StartupAction
+			 name: 'Start Literate Server'
+			 code: [
+				 | class |
+				 class := Smalltalk at: #LiterateServer ifAbsent: [
+					          Metacello new
+						          baseline: 'LiterateSmalltalk';
+						          repository: 'github:///jingtaozf/literate-smalltalk';
+						          onConflict: [ :ex | ex allow ];
+						          load.
+					          Smalltalk at: #LiterateServer ].
+				 class ifNotNil: [ LiterateServer start ] ]
+			 runOnce: false) }
+#+END_SRC
+So each time Pharo starts, it will start a HTTP server listening in local port =9092=, which Emacs can interact with.
+
+Of course, you can also add it via [[https://github.com/pharo-vcs/iceberg][Iceberge]] manually.
+** in Emacs
+In Emacs side, you should install Emacs library [[https://github.com/jingtaozf/literate-elisp][literate-elisp]] firstly, then load this library in Emacs like this:
+#+BEGIN_SRC elisp :load no
+(load "~/projects/literate-elisp/literate-elisp.el")
+(literate-elisp-load "~/projects/literate-smalltalk/literate-smalltalk.org")
+(add-to-list 'org-src-lang-modes '("smalltalk" . "literate-smalltalk-code"))
+(use-package poly-org :ensure t)
+#+END_SRC
+=literate-smalltalk= provides a new major mode [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#a-minor-mode-for-source-code][literate-smalltalk-code]] for Smalltalk source file, we also ensure [[https://polymode.github.io/][polymode]] mode
+use it.
+
+* Tutorial
+I'll show the general workflow and features of =literate-smalltalk= in this tutorial.
+
+Let's assume that you or your team have already created a git repository and imported the codes into Pharo,
+then you setup =literate-smalltalk= correctly so Pharo listens on port =9092= to wait for request from Emacs side.
+
+** Preparing an org file
+let's create an org file, that's all for this step but I suggest the following lines in the beginning of an org file.
+You can check the raw content of [[./literate-smalltalk.org]] to have a quick view.
+- enable poly-org mode
+#+begin_example
+# -*- encoding:utf-8 Mode: POLY-ORG; tab-width: 2; org-src-preserve-indentation: t; -*- ---
+#+end_example
+- remove the result part of all code block
+#+begin_example
+#+PROPERTY: header-args :results silent
+#+end_example
+- some default org properties for literate-smalltalk
+#+begin_example
+#+PROPERTY: literate-load yes
+#+PROPERTY: literate-lang smalltalk
+#+end_example
+** import source codes of some packages
+Generally speaking, the first step is importing some Smalltalk packages into our org file.
+
+We provide two Emacs command for this purpose:
+- [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#import-codes-of-namespaces-to-org-mode][literate-smalltalk-namespace-to-org-section]]
+
+	It will import the packages specified in each class's category slot.
+	This kind of packages are very large as it's a one level mapping between packages and classes.
+
+- [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#import-codes-of-packages-to-org-mode][literate-smalltalk-package-to-org-section]]
+	It will import the packages organized by [[https://github.com/pharo-project/pharo/tree/Pharo9.0/src/RPackage-Core][RPackage]], which is the top-level packages listed in Pharo System Browser.
+	It is more clean way I suggest to use.
+
+Now you have some source codes inside your org file.
+** compile a code block
+A code block can contain both a class definition or a method code,
+you can execute each source code block by Emacs command [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#execute-source-codes-in-current-code-block][literate-smalltalk-execute-current-code-block]],
+or execute in org mode by =org-babel-execute-src-block-maybe=.
+
+After compiling, it will show critiques by adding them as [[https://www.gnu.org/software/emacs/manual/html_node/elisp/Overlays.html][Overlays]].
+
+Please note that we use the following template for a class definition in a code block
+#+begin_src smalltalk
+"
+The REST Server for LiterateSmalltalk.
+"
+Object subclass: #LiterateServer
+    instanceVariableNames: ''
+    classVariableNames: 'Server Started interactionModel transcriptLogStream'
+    package: 'LiterateSmalltalk'
+----------------------
+LiterateServer class
+    instanceVariableNames: ''
+#+end_src
+The first part is the class comment, the second part is the =subclass= definition,
+the third part is the =class= definition.
+The separator line =----------------------= is necessary and should not be changed.
+** format code block
+It is better to format code before compiling, you can do so by Emacs command [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#command-to-code-format][literate-smalltalk-code-format-current-code-block]].
+** show suggestions
+We use company mode to show suggestions, via Emacs command [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#code-completion-with-company-mode][company-literate-smalltalk-code]].
+You can press shortcut key =Alt-/= or =Tab= to show a suggestion menu.
+** delete current class or method
+You can delete it in current code block by Emacs command [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#command-to-delete-a-class-method][literate-smalltalk-delete-current-class-or-method]].
+** update source code block from Pharo
+Sometimes you change some code inside Pharo, to get the latest code, you can update current code block by Emacs command
+[[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#update-source][literate-smalltalk-update-source]].
+* References
+- [[https://github.com/dmatveev/shampoo-emacs][Shampoo mode for Emacs]]
+- [[http://www.literateprogramming.com/][Literate Programming]] a site of literate programming
+- [[https://www.youtube.com/watch?v=Av0PQDVTP4A][Literate Programming in the Large]] a talk video from Timothy Daly, one of the original authors of [[https://en.wikipedia.org/wiki/Axiom_(computer_algebra_system)][Axiom]].
+- [[https://orgmode.org/worg/org-contrib/babel/intro.html#literate-programming][literate programming in org babel]]
+- [[https://github.com/limist/literate-programming-examples][A collection of literate programming examples using Emacs Org mode]]
