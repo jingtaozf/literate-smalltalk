@@ -1,5 +1,5 @@
 # -*- encoding:utf-8 Mode: POLY-ORG; tab-width: 2; org-src-preserve-indentation: t; -*- ---
-#+TITLE: Literate programming tool write smalltalk in org mode.
+#+TITLE: Literate programming tool to write Smalltalk in org mode.
 #+SubTitle: inspired by shampoo.
 #+OPTIONS: toc:2
 #+Startup: noindent
@@ -109,7 +109,13 @@ You need to install pharo side codes in pharo and start server by the following 
 LiterateServer start.
 #+end_src
 * How to do it? [6/8]
-We interact with pharo via shampoo, and hack shampoo to fetch/update codes in an org file.
+
+We setup a HTTP server in Pharo, so Emacs can interact with Pharo to
+- fetch packages, classes, method source
+- compile class/methods
+- format code block
+- show suggestions, etc.
+
 
 - [X] Find packages's sub category
   https://github.com/pharo-open-documentation/pharo-wiki/blob/master/General/Extensions.md#define-an-extension-method-programmatically
