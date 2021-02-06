@@ -17,7 +17,8 @@
   - [[#show-suggestions][show suggestions]]
   - [[#delete-current-class-or-method][delete current class or method]]
   - [[#update-source-code-block-from-pharo][update source code block from Pharo]]
-  - [[#eval-code][eval code]]
+  - [[#eval-code-repl][eval code (REPL)]]
+  - [[#compile-all-source-code-blocks-inside-a-section][compile all source code blocks inside a section]]
 - [[#references][References]]
 
 * Introduction
@@ -154,7 +155,7 @@ You can delete it in current code block by Emacs command [[https://github.com/ji
 ** update source code block from Pharo
 Sometimes you change some code inside Pharo, to get the latest code, you can update current code block by Emacs command
 [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#update-source][literate-smalltalk-update-source]].
-** eval code
+** eval code (REPL)
 You can create a code block with additional header argument =:type code=, in this case when you compile this code block,
 it is evaluated, and if you created a variable in it, you can use this variable in another code block with header argument =:type code=.
 
@@ -169,6 +170,11 @@ For me, I will create an individual org file for one project as an REPL for it.
 #+PROPERTY: literate-lang smalltalk
 #+PROPERTY: literate-load yes
 #+end_example
+** compile all source code blocks inside a section
+To compile all source code blocks inside a section, please invoke the Emacs command [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#execute-all-source-codes-in-current-header][literate-smalltalk-execute-current-header]].
+It will compiling all code blocks between current point and end of current section.
+
+If you execute this command with command prefix =C-u=, it will execute all code blocks between current point and end of current buffer.
 
 * References
 - [[https://github.com/dmatveev/shampoo-emacs][Shampoo mode for Emacs]]
