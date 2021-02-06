@@ -17,6 +17,7 @@
   - [[#show-suggestions][show suggestions]]
   - [[#delete-current-class-or-method][delete current class or method]]
   - [[#update-source-code-block-from-pharo][update source code block from Pharo]]
+  - [[#eval-code][eval code]]
 - [[#references][References]]
 
 * Introduction
@@ -25,7 +26,7 @@
 [[https://pharo.org/][Pharo]] is a pure object-oriented programming language and a powerful environment, focused on simplicity and immediate feedback.
 It also provides a markdown syntax [[https://github.com/pillar-markup/MicroDown][MicroDown]] for its class comment.
 
-From the point of my view, Pharo is a wonderful IDE for development, except that its native editor.
+From the point of my view, Pharo is a wonderful IDE for development, except its native editor.
 
 So here is a new literate programming environment for Pharo in Emacs org mode.
 
@@ -153,6 +154,22 @@ You can delete it in current code block by Emacs command [[https://github.com/ji
 ** update source code block from Pharo
 Sometimes you change some code inside Pharo, to get the latest code, you can update current code block by Emacs command
 [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#update-source][literate-smalltalk-update-source]].
+** eval code
+You can create a code block with additional header argument =:type code=, in this case when you compile this code block,
+it is evaluated, and if you created a variable in it, you can use this variable in another code block with header argument =:type code=.
+
+For me, I will create an individual org file for one project as an REPL for it.
+#+begin_example
+		# -*- Mode: POLY-ORG; encoding: utf-8; tab-width: 2;  -*- ---
+#+Title: The REPL of literate-smalltalk
+#+OPTIONS: tex:t toc:2 \n:nil @:t ::t |:t ^:nil -:t f:t *:t <:t
+#+STARTUP: noindent
+#+STARTUP: inlineimages
+#+PROPERTY: literate-header-arguments :type code
+#+PROPERTY: literate-lang smalltalk
+#+PROPERTY: literate-load yes
+#+end_example
+
 * References
 - [[https://github.com/dmatveev/shampoo-emacs][Shampoo mode for Emacs]]
 - [[http://www.literateprogramming.com/][Literate Programming]] a site of literate programming
