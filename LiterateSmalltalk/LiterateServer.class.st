@@ -196,7 +196,7 @@ LiterateServer class >> completion: className source: source [
 		           source: source
 		           position: source size.
 	entities := context entries collect: [ :each | each contents ].
-	^ { 
+	^ {
 		  (#status -> #success).
 		  (#entities -> entities) } asDictionary
 ]

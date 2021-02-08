@@ -71,9 +71,6 @@
     - [[#command-to-delete-a-class-method][command to delete a class method]]
     - [[#code-completion-with-company-mode][code completion with company mode]]
     - [[#pharo-3][Pharo]]
-  - [[#release-a-package][release a package]]
-    - [[#emacs-4][Emacs]]
-    - [[#pharo-4][Pharo]]
 - [[#code-navigation][Code navigation]]
   - [[#search-a-pattern-in-a-buffer-and-return-its-position][search a pattern in a buffer and return its position]]
   - [[#find-definition-of-class-in-org-files][find definition of class in org files]]
@@ -483,7 +480,7 @@ start
 	Started := true
 #+END_SRC
 ** log messages in Transcript
-We will just output it to a log file, so we can monitor them in a Emacs buffer.
+We will just output it to a log file, and can monitor them in a Emacs buffer.
 *** Emacs
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-transcript-log-file "~/.cache/literate-smalltalk/transcript.log")
@@ -500,7 +497,7 @@ update: aChange
 		transcriptLogStream := ((OSEnvironment current at: 'HOME')
 		                        , '/.cache/literate-smalltalk/transcript.log') asFileReference
 			                       writeStream.
-		].
+		transcriptLogStream setToEnd ].
 	transcriptLogStream print: Transcript contents.
 	transcriptLogStream flush
 #+END_SRC
@@ -1423,24 +1420,6 @@ completion: className source: source
 	^ {
 		  (#status -> #success).
 		  (#entities -> entities) } asDictionary
-#+END_SRC
-** release a package
-*** Emacs
-*** Pharo
-#+BEGIN_SRC smalltalk :side class :cat "compile"
-release: packageName
-
-	| iceRepository location |
-	iceRepository := IceRepository registeredRepositoryIncludingPackage:
-		                 (RPackageOrganizer default packageNamed: packageName asSymbol).
-	location := iceRepository
-		            ifNil: [
-			            | spec |
-			            spec := (Metacello image baseline: packageName) list first repositories
-				                    list first spec.
-			            "only support spec format with local path : gitlocal:///dir1/dir2"
-			            (spec description allButFirst: spec type size + '://' size) asFileReference ]
-		            ifNotNil: [ iceRepository location ].
 #+END_SRC
 * Code navigation
 The code navigation in pharo is straight-forward, there are only two concepts to lookup, a Class or a method.
