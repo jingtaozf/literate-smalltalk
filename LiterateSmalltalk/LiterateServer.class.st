@@ -447,7 +447,7 @@ LiterateServer class >> update: aChange [
 
 	aChange = #appendEntry ifFalse: [ ^ self ].
 	transcriptLogStream ifNotNil: [
-		transcriptLogStream closed ifTrue: [ transcriptLogStream := true ] ].
+		transcriptLogStream closed ifTrue: [ transcriptLogStream := nil ] ].
 	transcriptLogStream ifNil: [
 		transcriptLogStream := ((OSEnvironment current at: 'HOME')
 		                        , '/.cache/literate-smalltalk/transcript.log') asFileReference
