@@ -1448,8 +1448,7 @@ The code navigation in pharo is straight-forward, there are only two concepts to
 ** find definition of a class method in org files
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-find-method-definition (class-name method-name)
-  (or (literate-smalltalk-search-pattern (format ":class %s.*[\n\r]%s" class-name method-name))
-      (loop for buf in (cons (current-buffer)
+  (or (loop for buf in (cons (current-buffer)
                              (mapcar 'find-file-noselect (directory-files literate-smalltalk-libraries-literate-path t ".org$")))
             do (with-current-buffer buf
                  (save-excursion
@@ -1466,7 +1465,8 @@ The code navigation in pharo is straight-forward, there are only two concepts to
                            (when (re-search-forward (concat "^\s*" method-name) (plist-get block-info :end) t)
                              (goto-char (line-beginning-position))
                              (org-ensure-point-visible)
-                             (return (list (current-buffer) (point)))))))))))))
+                             (return (list (current-buffer) (point)))))))))))
+      (literate-smalltalk-search-pattern (format ":class %s.*[\n\r]%s" class-name method-name))))
 #+END_SRC
 ** get method name from method codes
 #+BEGIN_SRC elisp
