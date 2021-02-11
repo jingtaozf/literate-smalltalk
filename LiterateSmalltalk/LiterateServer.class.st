@@ -228,7 +228,7 @@ LiterateServer class >> evalCode: code openInspector: openInspector [
 		          source: code;
 		          context: evaluationContext;
 		          receiver: receiver;
-		          requestor: interactionModel;
+		          requestor: nil; "As it is a remote request, we allow compiler handle messages such as exceptions"
 		          failBlock: [ ^ nil ];
 		          evaluate.
 
