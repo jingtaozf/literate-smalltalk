@@ -123,7 +123,7 @@ We provide two Emacs command for this purpose:
 
 Now you have some source codes inside your org file.
 ** compile a code block
-A code block can contain both a class definition or a method code,
+A code block can contain either a class definition or a method code,
 you can execute each source code block by Emacs command [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#execute-source-codes-in-current-code-block][literate-smalltalk-execute-current-code-block]],
 or execute in org mode by =org-babel-execute-src-block-maybe=.
 
@@ -161,7 +161,7 @@ it is evaluated, and if you created a variable in it, you can use this variable 
 
 For me, I will create an individual org file for one project as an REPL for it.
 #+begin_example
-		# -*- Mode: POLY-ORG; encoding: utf-8; tab-width: 2;  -*- ---
+# -*- Mode: POLY-ORG; encoding: utf-8; tab-width: 2;  -*- ---
 #+Title: The REPL of literate-smalltalk
 #+OPTIONS: tex:t toc:2 \n:nil @:t ::t |:t ^:nil -:t f:t *:t <:t
 #+STARTUP: noindent
@@ -172,9 +172,9 @@ For me, I will create an individual org file for one project as an REPL for it.
 #+end_example
 ** compile all source code blocks inside a section
 To compile all source code blocks inside a section, please invoke the Emacs command [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#execute-all-source-codes-in-current-header][literate-smalltalk-execute-current-header]].
-It will compiling all code blocks between current point and end of current section.
+It will compiling all code blocks from current point to the end of current section.
 
-If you execute this command with command prefix =C-u=, it will execute all code blocks between current point and end of current buffer.
+If you execute this command with command prefix =C-u=, it will execute all code blocks from current point to the end of current buffer.
 
 * References
 - [[https://github.com/dmatveev/shampoo-emacs][Shampoo mode for Emacs]]
