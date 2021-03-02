@@ -23,9 +23,7 @@ LiterateServer class >> asStringArray: items [
 LiterateServer class >> bringToFront [
 
 	"a way to bring pharo window to front"
-
-	Display toggleFullscreen.
-	Display toggleFullscreen.
+	LibC uniqueInstance system: 'xdotool search --name ''Pharo'' windowactivate  --sync key backslash'
 ]
 
 { #category : #accessing }
