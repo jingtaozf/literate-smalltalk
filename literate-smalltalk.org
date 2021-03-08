@@ -182,54 +182,54 @@ literate-smalltalk-smalltalk-font-lock-keywords
 ** syntax table
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-smalltalk-mode-syntax-table
-(let ((table (make-syntax-table)))
-;; Make sure A-z0-9 are set to "w   " for completeness
-(let ((c 0))
-		(setq c ?0)
-		(while (<= c ?9)
-(setq c (1+ c))
-(modify-syntax-entry c "w   " table))
-		(setq c ?A)
-		(while (<= c ?Z)
-(setq c (1+ c))
-(modify-syntax-entry c "w   " table))
-		(setq c ?a)
-		(while (<= c ?z)
-(setq c (1+ c))
-(modify-syntax-entry c "w   " table)))
-(modify-syntax-entry 10  " >  " table) ; Comment (generic)
-(modify-syntax-entry ?:  ".   " table) ; Symbol-char
-(modify-syntax-entry ?_  "_   " table) ; Symbol-char
-(modify-syntax-entry ?\" "!1  " table) ; Comment (generic)
-(modify-syntax-entry ?'  "\"  " table) ; String
-(modify-syntax-entry ?#  "'   " table) ; Symbol or Array constant
-(modify-syntax-entry ?\( "()  " table) ; Grouping
-(modify-syntax-entry ?\) ")(  " table) ; Grouping
-(modify-syntax-entry ?\[ "(]  " table) ; Block-open
-(modify-syntax-entry ?\] ")[  " table) ; Block-close
-(modify-syntax-entry ?{  "(}  " table) ; Array-open
-(modify-syntax-entry ?}  "){  " table) ; Array-close
-(modify-syntax-entry ?$  "/   " table) ; Character literal
-(modify-syntax-entry ?!  ".   " table) ; End message / Delimit defs
-(modify-syntax-entry ?\; ".   " table) ; Cascade
-(modify-syntax-entry ?|  ".   " table) ; Temporaries
-(modify-syntax-entry ?^  ".   " table) ; Return
-;; Just to make sure these are not set to "w   "
-(modify-syntax-entry ?<  ".   " table)
-(modify-syntax-entry ?>  ".   " table)
-(modify-syntax-entry ?+  ".   " table) ; math
-(modify-syntax-entry ?-  ".   " table) ; math
-(modify-syntax-entry ?*  ".   " table) ; math
-(modify-syntax-entry ?/  ".2  " table) ; math
-(modify-syntax-entry ?=  ".   " table) ; bool/assign
-(modify-syntax-entry ?%  ".   " table) ; valid selector
-(modify-syntax-entry ?&  ".   " table) ; boolean
-(modify-syntax-entry ?\\ ".   " table) ; ???
-(modify-syntax-entry ?~  ".   " table) ; misc. selector
-(modify-syntax-entry ?@  ".   " table) ; Point
-(modify-syntax-entry ?,  ".   " table) ; concat
-table)
-"Syntax table used by Smalltalk mode")
+    (let ((table (make-syntax-table)))
+      ;; Make sure A-z0-9 are set to "w   " for completeness
+      (let ((c 0))
+		    (setq c ?0)
+		    (while (<= c ?9)
+          (setq c (1+ c))
+          (modify-syntax-entry c "w   " table))
+		    (setq c ?A)
+		    (while (<= c ?Z)
+          (setq c (1+ c))
+          (modify-syntax-entry c "w   " table))
+		    (setq c ?a)
+		    (while (<= c ?z)
+          (setq c (1+ c))
+          (modify-syntax-entry c "w   " table)))
+      (modify-syntax-entry 10  " >  " table) ; Comment (generic)
+      (modify-syntax-entry ?:  ".   " table) ; Symbol-char
+      (modify-syntax-entry ?_  "_   " table) ; Symbol-char
+      (modify-syntax-entry ?\" "!1  " table) ; Comment (generic)
+      (modify-syntax-entry ?'  "\"  " table) ; String
+      (modify-syntax-entry ?#  "'   " table) ; Symbol or Array constant
+      (modify-syntax-entry ?\( "()  " table) ; Grouping
+      (modify-syntax-entry ?\) ")(  " table) ; Grouping
+      (modify-syntax-entry ?\[ "(]  " table) ; Block-open
+      (modify-syntax-entry ?\] ")[  " table) ; Block-close
+      (modify-syntax-entry ?{  "(}  " table) ; Array-open
+      (modify-syntax-entry ?}  "){  " table) ; Array-close
+      ;; (modify-syntax-entry ?$  "/   " table) ; Character literal
+      (modify-syntax-entry ?!  ".   " table) ; End message / Delimit defs
+      (modify-syntax-entry ?\; ".   " table) ; Cascade
+      (modify-syntax-entry ?|  ".   " table) ; Temporaries
+      (modify-syntax-entry ?^  ".   " table) ; Return
+      ;; Just to make sure these are not set to "w   "
+      (modify-syntax-entry ?<  ".   " table)
+      (modify-syntax-entry ?>  ".   " table)
+      (modify-syntax-entry ?+  ".   " table) ; math
+      (modify-syntax-entry ?-  ".   " table) ; math
+      (modify-syntax-entry ?*  ".   " table) ; math
+      (modify-syntax-entry ?/  ".2  " table) ; math
+      (modify-syntax-entry ?=  ".   " table) ; bool/assign
+      (modify-syntax-entry ?%  ".   " table) ; valid selector
+      (modify-syntax-entry ?&  ".   " table) ; boolean
+      (modify-syntax-entry ?\\ ".   " table) ; ???
+      (modify-syntax-entry ?~  ".   " table) ; misc. selector
+      (modify-syntax-entry ?@  ".   " table) ; Point
+      (modify-syntax-entry ?,  ".   " table) ; concat
+      table)
+  "Syntax table used by Smalltalk mode")
 #+END_SRC
 
 ** mode definition
@@ -336,7 +336,7 @@ table)
 ** api request
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-rest-server "http://localhost:9092/")
-(defvar literate-smalltalk-last-response nil)
+(defvar literate-smalltalk-last-responses nil)
 (cl-defun literate-smalltalk-request (path &key params data (type "GET"))
   (let ((resp nil))
     (request (concat literate-smalltalk-rest-server path)
@@ -347,7 +347,7 @@ table)
         :data data
         :complete (cl-function
                    (lambda (&key response &allow-other-keys)
-                     (setf literate-smalltalk-last-response response)
+                     (push response literate-smalltalk-last-responses)
                      (case (request-response-status-code response)
                        (200 (setf resp (request-response-data response)))
                        (500 (error "Pharo failed:%s" (cdr (assoc 'message resp))))
