@@ -1424,12 +1424,16 @@ completion: className source: source
 * Code navigation
 The code navigation in pharo is straight-forward, there are only two concepts to lookup, a Class or a method.
 ** search a pattern in a buffer and return its position
+Please note that we will use a lazy way to open a literate source file to save our memory.
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-libraries-literate-path "~/Pharo/literate/")
 (defun literate-smalltalk-search-pattern (pattern)
   (save-restriction
-    (loop for buf in (cons (current-buffer)
-                           (mapcar 'find-file-noselect (directory-files literate-smalltalk-libraries-literate-path t ".org$")))
+    (loop for buf-or-file in (cons (current-buffer)
+                                   (directory-files literate-smalltalk-libraries-literate-path t ".org$"))
+          for buf = (if (bufferp buf-or-file)
+                      buf-or-file
+                      (find-file-noselect buf-or-file))
           do (with-current-buffer buf
                (save-excursion
                  (goto-char (point-min))
@@ -1444,10 +1448,14 @@ The code navigation in pharo is straight-forward, there are only two concepts to
   (literate-smalltalk-search-pattern (format "subclass: #%s" class-name)))
 #+END_SRC
 ** find definition of a class method in org files
+Please note that we will use a lazy way to open a literate source file to save our memory.
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-find-method-definition (class-name method-name)
-  (or (loop for buf in (cons (current-buffer)
-                             (mapcar 'find-file-noselect (directory-files literate-smalltalk-libraries-literate-path t ".org$")))
+  (or (loop for buf-or-file in (cons (current-buffer)
+                                     (directory-files literate-smalltalk-libraries-literate-path t ".org$"))
+            for buf = (if (bufferp buf-or-file)
+                        buf-or-file
+                        (find-file-noselect buf-or-file))
             do (with-current-buffer buf
                  (save-excursion
                    (goto-char (point-min))
