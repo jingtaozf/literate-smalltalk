@@ -49,6 +49,7 @@
     - [[#asstringarray][asStringArray:]]
     - [[#elementsstring][elementsString]]
     - [[#bringtofront][bringToFront]]
+    - [[#release-an-iceberg-package-to-local-file-system][release an Iceberg package to local file system.]]
 - [[#query][Query]]
   - [[#namespace][namespace]]
     - [[#namespaces][namespaces]]
@@ -79,6 +80,9 @@
   - [[#basic-idea][basic idea]]
   - [[#xref-interfaces][xref interfaces]]
   - [[#implementation][implementation]]
+  - [[#browse-class-in-pharo][browse class in Pharo]]
+    - [[#emacs-4][Emacs]]
+    - [[#pharo-4][Pharo]]
 - [[#update-source][Update source]]
 - [[#imports-codes-to-org-file][imports codes to org file]]
   - [[#import-codes-of-namespaces-to-org-mode][Import codes of namespaces to org mode]]
@@ -91,7 +95,7 @@
     - [[#implementation-1][implementation]]
   - [[#execute-all-source-codes-in-current-header][execute all source codes in current header]]
   - [[#execute-source-codes-in-current-code-block][execute source codes in current code block]]
-- [[#release-to-pharo][Release to pharo]]
+- [[#release-from-pharo-to-local-file-system][Release from pharo to local file system]]
 - [[#test][Test]]
   - [[#eval-codes][eval codes]]
   - [[#ban-some-critiques-rules][ban some critiques rules]]
@@ -469,6 +473,8 @@ start
 			'/format/code' -> [ :req | self formatCode: (req at: #source) type: (req at: #type) ];
 		POST: '/completion/method'
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
+		GET: '/browse/class/<class>'
+			-> [ :req | self browseClass: (req at: #class) ];
 		exception: Exception -> [ :ex :req |
 				self bringToFront.
 				ex pass.
@@ -527,6 +533,30 @@ bringToFront
 
 	"a way to bring pharo window to front"
 	LibC uniqueInstance system: 'xdotool search --name ''Pharo'' windowactivate  --sync key backslash'
+#+END_SRC
+*** release an Iceberg package to local file system.
+#+BEGIN_SRC smalltalk :side class :cat "utilities"
+releaseIcebergPackage: icebergPackage
+
+	| iceRepository location srcDirectory |
+	iceRepository := IceRepository registeredRepositoryIncludingPackage:
+		                 (RPackageOrganizer default packageNamed: icebergPackage).
+	location := iceRepository location.
+	srcDirectory := iceRepository project properties at: 'srcDirectory' ifAbsent: ''.
+	srcDirectory ifNotEmpty: [ location := location / srcDirectory ].
+	iceRepository workingCopy packages do: [ :package |
+		| packageName |
+		packageName := package package.
+		(RPackageOrganizer default packageNamed: packageName asSymbol) classTags do: [ :tag |
+			tag orderedClasses do: [ :class |
+				| file |
+				file := location / ('{1}/{2}.class.st' format: {
+						         packageName.
+						         class asString }).
+				file exists ifTrue: [ file delete ].
+				file
+					writeStreamDo: [ :s | TonelWriter exportClass: class on: s ];
+					yourself ] ] ]
 #+END_SRC
 * Query
 ** namespace
@@ -1523,7 +1553,27 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
                        (xref-make-buffer-location (first buf-pos)
                                                 (second buf-pos)))))))
 #+END_SRC
+** browse class in Pharo
+*** Emacs
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-browse-class ()
+  (interactive)
+  (let ((class-name (literate-smalltalk-current-symbol-at-point)))
+    (literate-smalltalk-request (concat "browse/class/" class-name))))
+#+END_SRC
 
+*** Pharo
+#+BEGIN_SRC smalltalk :side class :cat "utilities"
+browseClass: className
+
+	| class |
+	class := Smalltalk at: className asSymbol.
+	Smalltalk tools browser openOnClass: class.
+	self bringToFront.
+	^ {
+		  (#status -> #success).
+		  (#message -> 'Opend in Pharo') } asDictionary
+#+END_SRC
 * Update source
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-update-source ()
@@ -1799,14 +1849,10 @@ override our own compilation report.
       (org-babel-execute-src-block-maybe))))
 #+END_SRC
 
-* Release to pharo
+* Release from pharo to local file system
 #+BEGIN_SRC smalltalk :type code
-| file |
-file := ((OSEnvironment current at: #HOME), '/projects/literate-smalltalk/LiterateSmalltalk/LiterateServer.class.st') asFileReference.
-file exists ifTrue: [ file delete ].
-file
-	writeStreamDo: [ :s | TonelWriter exportClass: LiterateServer on: s ];
-	yourself
+{ #BaselineOfLiterateSmalltalk. #LiterateSmalltalk } do: [ :package |
+	LiterateServer releaseIcebergPackage: package ]
 #+END_SRC
 * Test
 ** eval codes

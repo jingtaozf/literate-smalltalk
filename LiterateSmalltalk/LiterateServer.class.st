@@ -26,6 +26,18 @@ LiterateServer class >> bringToFront [
 	LibC uniqueInstance system: 'xdotool search --name ''Pharo'' windowactivate  --sync key backslash'
 ]
 
+{ #category : #utilities }
+LiterateServer class >> browseClass: className [
+
+	| class |
+	class := Smalltalk at: className asSymbol.
+	Smalltalk tools browser openOnClass: class.
+	self bringToFront.
+	^ { 
+		  (#status -> #success).
+		  (#message -> 'Opend in Pharo') } asDictionary
+]
+
 { #category : #accessing }
 LiterateServer class >> catMethods: className category: cat side: side [
 
@@ -329,6 +341,30 @@ LiterateServer class >> packages [
 		  (#packages -> RPackageOrganizer default packageNames) } asDictionary
 ]
 
+{ #category : #utilities }
+LiterateServer class >> releaseIcebergPackage: icebergPackage [
+
+	| iceRepository location srcDirectory |
+	iceRepository := IceRepository registeredRepositoryIncludingPackage:
+		                 (RPackageOrganizer default packageNamed: icebergPackage).
+	location := iceRepository location.
+	srcDirectory := iceRepository project properties at: 'srcDirectory' ifAbsent: ''.
+	srcDirectory ifNotEmpty: [ location := location / srcDirectory ].
+	iceRepository workingCopy packages do: [ :package | 
+		| packageName |
+		packageName := package package.
+		(RPackageOrganizer default packageNamed: packageName asSymbol) classTags do: [ :tag | 
+			tag orderedClasses do: [ :class | 
+				| file |
+				file := location / ('{1}/{2}.class.st' format: { 
+						         packageName.
+						         class asString }).
+				file exists ifTrue: [ file delete ].
+				file
+					writeStreamDo: [ :s | TonelWriter exportClass: class on: s ];
+					yourself ] ] ]
+]
+
 { #category : #compile }
 LiterateServer class >> removeClass: className [
 
@@ -429,6 +465,8 @@ LiterateServer class >> start [
 			'/format/code' -> [ :req | self formatCode: (req at: #source) type: (req at: #type) ];
 		POST: '/completion/method'
 			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
+		GET: '/browse/class/<class>'
+			-> [ :req | self browseClass: (req at: #class) ];
 		exception: Exception -> [ :ex :req |
 				self bringToFront.
 				ex pass.
