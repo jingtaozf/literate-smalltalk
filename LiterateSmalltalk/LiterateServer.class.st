@@ -14,34 +14,51 @@ Class {
 }
 
 { #category : #utilities }
-LiterateServer class >> asStringArray: items [
+LiterateServer class >> abortReq: req status: status message: message [
 
-	^ (items collect: [ :each | each asString ]) asArray
+	req abort: {
+			('status' -> status).
+			('message' -> message) } asDictionary
 ]
 
-{ #category : #utilities }
-LiterateServer class >> bringToFront [
+{ #category : #'pharo api' }
+LiterateServer class >> apiBrowseClass: req [
 
-	"a way to bring pharo window to front"
-	LibC uniqueInstance system: 'xdotool search --name ''Pharo'' windowactivate  --sync key backslash'
-]
-
-{ #category : #utilities }
-LiterateServer class >> browseClass: className [
-
-	| class |
+	| className class |
+	className := req
+		             at: #class
+		             ifAbsent: [
+		             self abortReq: req status: 'error' message: 'No class name is specified.' ].
 	class := Smalltalk at: className asSymbol.
 	Smalltalk tools browser openOnClass: class.
 	self bringToFront.
-	^ { 
+	^ {
 		  (#status -> #success).
 		  (#message -> 'Opend in Pharo') } asDictionary
 ]
 
-{ #category : #accessing }
-LiterateServer class >> catMethods: className category: cat side: side [
+{ #category : #'pharo api' }
+LiterateServer class >> apiBrowseImplementors: req [
 
-	| class methods allMethods |
+	| methodName |
+	methodName := req
+		              at: #name
+		              ifAbsent: [
+		              self abortReq: req status: 'error' message: 'No name is specified.' ].
+	SystemNavigation default browseAllImplementorsOf: methodName asSymbol.
+	self bringToFront.
+	^ {
+		  (#status -> #success).
+		  (#message -> 'Opend in Pharo') } asDictionary
+]
+
+{ #category : #'query api' }
+LiterateServer class >> apiCatMethods: req [
+
+	| className cat side class methods allMethods |
+	className := req at: #class.
+	cat := req at: #cat.
+	side := req at: #side.
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
@@ -56,10 +73,11 @@ LiterateServer class >> catMethods: className category: cat side: side [
 		  asDictionary
 ]
 
-{ #category : #accessing }
-LiterateServer class >> classCats: className [
+{ #category : #'query api' }
+LiterateServer class >> apiClassCats: req [
 
-	| class cats result |
+	| className class cats result |
+	className := req at: #class.
 	result := Dictionary new.
 	class := Smalltalk at: className asSymbol.
 	cats := Set new.
@@ -76,23 +94,18 @@ LiterateServer class >> classCats: className [
 		  (#result -> result) } asDictionary
 ]
 
-{ #category : #accessing }
-LiterateServer class >> classDef: className [
+{ #category : #'query api' }
+LiterateServer class >> apiClassDef: req [
 
-	| class instanceSide classSide result |
+	| className class instanceSide classSide result |
+	className := req at: #class.
 	class := Smalltalk at: className asSymbol.
 	instanceSide := Dictionary new.
 	instanceSide at: #class put: className.
 	instanceSide at: #superclass put: class superclass printString.
-	instanceSide
-		at: #instvars
-		put: (self asStringArray: class instVarNames).
-	instanceSide
-		at: #classvars
-		put: (self asStringArray: class classVarNames).
-	instanceSide
-		at: #poolvars
-		put: (self asStringArray: class sharedPools).
+	instanceSide at: #instvars put: (self asStringArray: class instVarNames).
+	instanceSide at: #classvars put: (self asStringArray: class classVarNames).
+	instanceSide at: #poolvars put: (self asStringArray: class sharedPools).
 	instanceSide at: #package put: class category.
 	instanceSide at: #comment put: class comment.
 
@@ -101,9 +114,7 @@ LiterateServer class >> classDef: className [
 	classSide at: #class put: className.
 	classSide at: #superclass put: class superclass printString.
 	classSide at: #instvars put: (self asStringArray: class instVarNames).
-	classSide
-		at: #classvars
-		put: (self asStringArray: class classVarNames).
+	classSide at: #classvars put: (self asStringArray: class classVarNames).
 	classSide at: #poolvars put: (self asStringArray: class sharedPools).
 	result := Dictionary new.
 	result at: #instance put: instanceSide.
@@ -113,10 +124,11 @@ LiterateServer class >> classDef: className [
 		  (#result -> result) } asDictionary
 ]
 
-{ #category : #accessing }
-LiterateServer class >> classes: namespace [
+{ #category : #'query api' }
+LiterateServer class >> apiClasses: req [
 
-	| resultList |
+	| namespace resultList |
+	namespace := req at: #namespace.
 	resultList := Smalltalk globals allClasses select: [ :each |
 		              each category asString = namespace ].
 	^ {
@@ -124,10 +136,12 @@ LiterateServer class >> classes: namespace [
 		  #classes -> (resultList collect: [ :each | each name asString ])  } asDictionary
 ]
 
-{ #category : #compile }
-LiterateServer class >> compileClass: instDef class: classDef [
+{ #category : #'compiling api' }
+LiterateServer class >> apiCompileClass: req [
 
-	| parent class status instvars classvars |
+	| instDef classDef parent class status instvars classvars |
+	instDef := (NeoJSONReader fromString: (req at: #instance)).
+	classDef := (NeoJSONReader fromString: (req at: #class)).
 	status := #success.
 	instvars := ''.
 	(instDef at: #instvars) ifNotNil: [
@@ -160,10 +174,14 @@ LiterateServer class >> compileClass: instDef class: classDef [
 	^ { (#status -> status) } asDictionary
 ]
 
-{ #category : #compile }
-LiterateServer class >> compileMethod: className category: cat source: source side: side [
+{ #category : #'compiling api' }
+LiterateServer class >> apiCompileMethod: req [
 
-	| class status selector critiques message |
+	| className cat source side class status selector critiques message |
+	className := req at: #class.
+	cat := req at: #category.
+	source := req at: #source.
+	side := req at: #side.
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
@@ -194,10 +212,12 @@ LiterateServer class >> compileMethod: className category: cat source: source si
 		  (#critiques -> critiques) } asDictionary
 ]
 
-{ #category : #compile }
-LiterateServer class >> completion: className source: source [
+{ #category : #'compiling api' }
+LiterateServer class >> apiCompletionMethod: req [
 
-	| class context entities |
+	| className source class context entities |
+	className := req at: #class.
+	source := req at: #source.
 	class := Smalltalk at:
 		         (className ifEmpty: [ #GTPlayground ] ifNotEmpty: [ className asSymbol ]).
 	context := CompletionContext
@@ -211,14 +231,8 @@ LiterateServer class >> completion: className source: source [
 		  (#entities -> entities) } asDictionary
 ]
 
-{ #category : #utilities }
-LiterateServer class >> elementsString: items [
-
-	^ items inject: '' into: [ :acc :each | acc , each asString , ' ' ]
-]
-
-{ #category : #compile }
-LiterateServer class >> evalBindings [
+{ #category : #'compiling api' }
+LiterateServer class >> apiEvalBindings: req [
 
 	self bringToFront.
 	GTInspector inspect: interactionModel bindings.
@@ -227,10 +241,12 @@ LiterateServer class >> evalBindings [
 		  (#message -> 'Inspector has been opened.') } asDictionary
 ]
 
-{ #category : #compile }
-LiterateServer class >> evalCode: code openInspector: openInspector [
+{ #category : #'compiling api' }
+LiterateServer class >> apiEvalCode: req [
 
-	| status result receiver evaluationContext |
+	| code openInspector status result receiver evaluationContext |
+	code := req at: #code.
+	openInspector := (req at: #inspector ifAbsent: 'false') = 'true'.
 	status := #success.
 	receiver := interactionModel doItReceiver.
 	evaluationContext := interactionModel doItContext.
@@ -250,10 +266,12 @@ LiterateServer class >> evalCode: code openInspector: openInspector [
 		  (#status -> status) } asDictionary
 ]
 
-{ #category : #compile }
-LiterateServer class >> formatCode: source type: type [
+{ #category : #'compiling api' }
+LiterateServer class >> apiFormatCode: req [
 
-	| tree errBlock |
+	| source type tree errBlock |
+	source := req at: #source.
+	type := req at: #type.
 	errBlock := [ :msg :pos |
 	            ^ {
 		              (#status -> #failed).
@@ -267,10 +285,13 @@ LiterateServer class >> formatCode: source type: type [
 		  (#source -> tree formattedCode) } asDictionary
 ]
 
-{ #category : #accessing }
-LiterateServer class >> methodSource: className name: methodName side: side [
+{ #category : #'query api' }
+LiterateServer class >> apiMethodSource: req [
 
-	| class method |
+	| className methodName side class method |
+	className := req at: #class.
+	methodName := req at: #name.
+	side := req at: #side.
 	class := Smalltalk at: className asSymbol.
 	class := side = #class
 		         ifTrue: [ class class ]
@@ -281,19 +302,22 @@ LiterateServer class >> methodSource: className name: methodName side: side [
 		  (#source -> method sourceCode) } asDictionary
 ]
 
-{ #category : #accessing }
-LiterateServer class >> namespaces [
+{ #category : #'query api' }
+LiterateServer class >> apiNamespaces: req [
 
 	| names |
-	names := (Smalltalk globals allClasses collect: [ :each |
-		          each category asString ]) asSet asSortedCollection.
-	^ { (#status -> #success). (#namespaces -> names) } asDictionary
+	names := (Smalltalk globals allClasses collect: [ :each | each category asString ]) asSet
+		         asSortedCollection.
+	^ {
+		  (#status -> #success).
+		  (#namespaces -> names) } asDictionary
 ]
 
-{ #category : #accessing }
-LiterateServer class >> packageExtensions: packageName [
+{ #category : #'query api' }
+LiterateServer class >> apiPackageExtensions: req [
 
-	| package methods |
+	| packageName package methods |
+	packageName := req at: #package.
 	package := RPackageOrganizer default
 		           packageNamed: packageName asSymbol
 		           ifAbsent: RPackage new.
@@ -316,10 +340,11 @@ LiterateServer class >> packageExtensions: packageName [
 		  (#methods -> methods) } asDictionary
 ]
 
-{ #category : #accessing }
-LiterateServer class >> packageTags: packageName [
+{ #category : #'query api' }
+LiterateServer class >> apiPackageTags: req [
 
-	| package tags |
+	| packageName package tags |
+	packageName := req at: #package.
 	package := RPackageOrganizer default
 		           packageNamed: packageName asSymbol
 		           ifAbsent: RPackage new.
@@ -333,42 +358,19 @@ LiterateServer class >> packageTags: packageName [
 		  (#tags -> tags) } asDictionary
 ]
 
-{ #category : #accessing }
-LiterateServer class >> packages [
+{ #category : #'query api' }
+LiterateServer class >> apiPackages: req [
 
 	^ {
 		  (#status -> #success).
 		  (#packages -> RPackageOrganizer default packageNames) } asDictionary
 ]
 
-{ #category : #utilities }
-LiterateServer class >> releaseIcebergPackage: icebergPackage [
+{ #category : #'compiling api' }
+LiterateServer class >> apiRemoveClass: req [
 
-	| iceRepository location srcDirectory |
-	iceRepository := IceRepository registeredRepositoryIncludingPackage:
-		                 (RPackageOrganizer default packageNamed: icebergPackage).
-	location := iceRepository location.
-	srcDirectory := iceRepository project properties at: 'srcDirectory' ifAbsent: ''.
-	srcDirectory ifNotEmpty: [ location := location / srcDirectory ].
-	iceRepository workingCopy packages do: [ :package | 
-		| packageName |
-		packageName := package package.
-		(RPackageOrganizer default packageNamed: packageName asSymbol) classTags do: [ :tag | 
-			tag orderedClasses do: [ :class | 
-				| file |
-				file := location / ('{1}/{2}.class.st' format: { 
-						         packageName.
-						         class asString }).
-				file exists ifTrue: [ file delete ].
-				file
-					writeStreamDo: [ :s | TonelWriter exportClass: class on: s ];
-					yourself ] ] ]
-]
-
-{ #category : #compile }
-LiterateServer class >> removeClass: className [
-
-	| class |
+	| className class |
+	className := req at: #class.
 	class := Smalltalk at: className asSymbol ifAbsent: nil.
 	class ifNil: [
 		^ {
@@ -380,17 +382,20 @@ LiterateServer class >> removeClass: className [
 		  (#message -> '') } asDictionary
 ]
 
-{ #category : #compile }
-LiterateServer class >> removeSelector: className name: methodName side: side [
+{ #category : #'compiling api' }
+LiterateServer class >> apiRemoveSelector: req [
 
-	| class status message |
+	| className methodName side class status message |
+	className := req at: #class.
+	methodName := req at: #name.
+	side := req at: #side.
 	class := Smalltalk at: className asSymbol.
 	class := side = #class
 		         ifTrue: [ class class ]
 		         ifFalse: [ class ].
 	status := #success.
 	message := ''.
-	[ class removeSelector: methodName asSymbol]
+	[ class removeSelector: methodName asSymbol ]
 		on: Exception
 		do: [ :ex |
 			message := ex asString.
@@ -398,6 +403,66 @@ LiterateServer class >> removeSelector: className name: methodName side: side [
 	^ {
 		  (#status -> status).
 		  (#message -> message) } asDictionary
+]
+
+{ #category : #utilities }
+LiterateServer class >> asStringArray: items [
+
+	^ (items collect: [ :each | each asString ]) asArray
+]
+
+{ #category : #utilities }
+LiterateServer class >> bringToFront [
+
+	"a way to bring pharo window to front"
+	LibC uniqueInstance system: 'xdotool search --name ''Pharo'' windowactivate  --sync key backslash'
+]
+
+{ #category : #management }
+LiterateServer class >> dispatch: req [
+
+	| apiName methodName |
+	apiName := req
+		           at: #api
+		           ifAbsent: [ self abortReq: req status: 'fatal' message: 'No api specified.' ].
+	methodName := ('api' , apiName , ':') asSymbol.
+	Transcript
+		show: 'check method:';
+		show: methodName asString;
+		cr.
+	(self class canUnderstand: methodName) ifFalse: [
+		self abortReq: req status: 'fatal' message: 'No implementation for this api' ].
+	^ self perform: methodName with: req
+]
+
+{ #category : #utilities }
+LiterateServer class >> elementsString: items [
+
+	^ items inject: '' into: [ :acc :each | acc , each asString , ' ' ]
+]
+
+{ #category : #utilities }
+LiterateServer class >> releaseIcebergPackage: icebergPackage [
+
+	| iceRepository location srcDirectory |
+	iceRepository := IceRepository registeredRepositoryIncludingPackage:
+		                 (RPackageOrganizer default packageNamed: icebergPackage).
+	location := iceRepository location.
+	srcDirectory := iceRepository project properties at: 'srcDirectory' ifAbsent: ''.
+	srcDirectory ifNotEmpty: [ location := location / srcDirectory ].
+	iceRepository workingCopy packages do: [ :package |
+		| packageName |
+		packageName := package package.
+		(RPackageOrganizer default packageNamed: packageName asSymbol) classTags do: [ :tag |
+			tag orderedClasses do: [ :class |
+				| file |
+				file := location / ('{1}/{2}.class.st' format: {
+						         packageName.
+						         class asString }).
+				file exists ifTrue: [ file delete ].
+				file
+					writeStreamDo: [ :s | TonelWriter exportClass: class on: s ];
+					yourself ] ] ]
 ]
 
 { #category : #accessing }
@@ -430,43 +495,10 @@ LiterateServer class >> start [
 	teapot server logLevel: 1.
 	self server: teapot.
 	teapot
-		GET: '/namespaces' -> [ :req | self namespaces ];
-		GET: '/classes/<namespace>' -> [ :req | self classes: (req at: #namespace) ];
-		GET: '/packages' -> [ :req | self packages ];
-		GET: '/package/tags/<package>' -> [ :req | self packageTags: (req at: #package) ];
-		GET:
-			'/package/extensions/<package>'
-			-> [ :req | self packageExtensions: (req at: #package) ];
-		GET: '/class/<class>' -> [ :req | self classDef: (req at: #class) ];
-		GET: '/cats/<class>' -> [ :req | self classCats: (req at: #class) ];
-		GET: '/cat/methods'
-			-> [ :req |
-				self catMethods: (req at: #class) category: (req at: #cat) side: (req at: #side) ];
-		GET: '/method/source'
-			-> [ :req |
-				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		GET: '/method/remove' -> [ :req |
-				self removeSelector: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		POST: '/eval'
-			-> [ :req | self evalCode: (req at: #code) openInspector: (req at: #inspector) = #true ];
-		GET: '/eval/bindings' -> [ :req | self evalBindings ];
-		GET: '/remove/class' -> [ :req | self removeClass: (req at: #class) ];
-		POST: '/compile/class' -> [ :req |
-				self
-					compileClass: (NeoJSONReader fromString: (req at: #instance))
-					class: (NeoJSONReader fromString: (req at: #class)) ];
-		POST: '/compile/method' -> [ :req |
-				self
-					compileMethod: (req at: #class)
-					category: (req at: #category)
-					source: (req at: #source)
-					side: (req at: #side) ];
-		POST:
-			'/format/code' -> [ :req | self formatCode: (req at: #source) type: (req at: #type) ];
-		POST: '/completion/method'
-			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
-		GET: '/browse/class/<class>'
-			-> [ :req | self browseClass: (req at: #class) ];
+		addRouteMethod: TeaMethodMatcher any
+		pattern: '/api/<api>/*'
+		action: [ :req | self dispatch: req ];
+		output: #json;
 		exception: Exception -> [ :ex :req |
 				self bringToFront.
 				ex pass.

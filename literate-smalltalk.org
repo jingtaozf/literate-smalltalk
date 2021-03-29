@@ -41,13 +41,15 @@
   - [[#the-server-accessor][the Server accessor]]
     - [[#reader][reader]]
     - [[#writer][writer]]
-  - [[#routes][routes]]
+  - [[#dispatch-requests-to-api-method][dispatch requests to api method]]
+  - [[#start][start]]
   - [[#log-messages-in-transcript][log messages in Transcript]]
     - [[#emacs][Emacs]]
     - [[#pharo][Pharo]]
   - [[#utils][utils]]
     - [[#asstringarray][asStringArray:]]
     - [[#elementsstring][elementsString]]
+    - [[#abort-current-reqeust][abort current reqeust]]
     - [[#bringtofront][bringToFront]]
     - [[#release-an-iceberg-package-to-local-file-system][release an Iceberg package to local file system.]]
 - [[#query][Query]]
@@ -83,6 +85,9 @@
   - [[#browse-class-in-pharo][browse class in Pharo]]
     - [[#emacs-4][Emacs]]
     - [[#pharo-4][Pharo]]
+  - [[#browse-implementors-in-pharo][browse implementors in Pharo]]
+    - [[#emacs-5][Emacs]]
+    - [[#pharo-5][Pharo]]
 - [[#update-source][Update source]]
 - [[#imports-codes-to-org-file][imports codes to org file]]
   - [[#import-codes-of-namespaces-to-org-mode][Import codes of namespaces to org mode]]
@@ -340,7 +345,7 @@ literate-smalltalk-smalltalk-font-lock-keywords
 ** api request
 #+BEGIN_SRC elisp
 (defvar literate-smalltalk-rest-server "http://localhost:9092/")
-(defvar literate-smalltalk-last-responses nil)
+(defvar literate-smalltalk-last-response nil)
 (cl-defun literate-smalltalk-request (path &key params data (type "GET"))
   (let ((resp nil))
     (request (concat literate-smalltalk-rest-server path)
@@ -351,7 +356,7 @@ literate-smalltalk-smalltalk-font-lock-keywords
         :data data
         :complete (cl-function
                    (lambda (&key response &allow-other-keys)
-                     (push response literate-smalltalk-last-responses)
+                     (setf literate-smalltalk-last-response response)
                      (case (request-response-status-code response)
                        (200 (setf resp (request-response-data response)))
                        (500 (error "Pharo failed:%s" (cdr (assoc 'message resp))))
@@ -419,7 +424,26 @@ server: server
 	"sets teapot for class"
 	Server := server.
 #+END_SRC
-** routes
+** dispatch requests to api method
+The dispatch rule is simple: if the incoming request contains a parameter =api=, we will
+try to perform request on class method with prefix =api= and the value of this parameter.
+#+BEGIN_SRC smalltalk :side class :cat "management"
+dispatch: req
+
+	| apiName methodName |
+	apiName := req
+		           at: #api
+		           ifAbsent: [ self abortReq: req status: 'fatal' message: 'No api specified.' ].
+	methodName := ('api' , apiName , ':') asSymbol.
+	Transcript
+		show: 'check method:';
+		show: methodName asString;
+		cr.
+	(self class canUnderstand: methodName) ifFalse: [
+		self abortReq: req status: 'fatal' message: 'No implementation for this api' ].
+	^ self perform: methodName with: req
+#+END_SRC
+** start
 #+BEGIN_SRC smalltalk :side class :cat "management"
 start
 
@@ -438,43 +462,10 @@ start
 	teapot server logLevel: 1.
 	self server: teapot.
 	teapot
-		GET: '/namespaces' -> [ :req | self namespaces ];
-		GET: '/classes/<namespace>' -> [ :req | self classes: (req at: #namespace) ];
-		GET: '/packages' -> [ :req | self packages ];
-		GET: '/package/tags/<package>' -> [ :req | self packageTags: (req at: #package) ];
-		GET:
-			'/package/extensions/<package>'
-			-> [ :req | self packageExtensions: (req at: #package) ];
-		GET: '/class/<class>' -> [ :req | self classDef: (req at: #class) ];
-		GET: '/cats/<class>' -> [ :req | self classCats: (req at: #class) ];
-		GET: '/cat/methods'
-			-> [ :req |
-				self catMethods: (req at: #class) category: (req at: #cat) side: (req at: #side) ];
-		GET: '/method/source'
-			-> [ :req |
-				self methodSource: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		GET: '/method/remove' -> [ :req |
-				self removeSelector: (req at: #class) name: (req at: #name) side: (req at: #side) ];
-		POST: '/eval'
-			-> [ :req | self evalCode: (req at: #code) openInspector: (req at: #inspector) = #true ];
-		GET: '/eval/bindings' -> [ :req | self evalBindings ];
-		GET: '/remove/class' -> [ :req | self removeClass: (req at: #class) ];
-		POST: '/compile/class' -> [ :req |
-				self
-					compileClass: (NeoJSONReader fromString: (req at: #instance))
-					class: (NeoJSONReader fromString: (req at: #class)) ];
-		POST: '/compile/method' -> [ :req |
-				self
-					compileMethod: (req at: #class)
-					category: (req at: #category)
-					source: (req at: #source)
-					side: (req at: #side) ];
-		POST:
-			'/format/code' -> [ :req | self formatCode: (req at: #source) type: (req at: #type) ];
-		POST: '/completion/method'
-			-> [ :req | self completion: (req at: #class) source: (req at: #source) ];
-		GET: '/browse/class/<class>'
-			-> [ :req | self browseClass: (req at: #class) ];
+		addRouteMethod: TeaMethodMatcher any
+		pattern: '/api/<api>/*'
+		action: [ :req | self dispatch: req ];
+		output: #json;
 		exception: Exception -> [ :ex :req |
 				self bringToFront.
 				ex pass.
@@ -527,6 +518,14 @@ elementsString: items
 
 	^ items inject: '' into: [ :acc :each | acc , each asString , ' ' ]
 #+END_SRC
+*** abort current reqeust
+#+BEGIN_SRC smalltalk :side class :cat "utilities"
+abortReq: req status: status message: message
+
+	req abort: {
+			('status' -> status).
+			('message' -> message) } asDictionary
+#+END_SRC
 *** bringToFront
 #+BEGIN_SRC smalltalk :side class :cat "utilities"
 bringToFront
@@ -564,19 +563,21 @@ releaseIcebergPackage: icebergPackage
 **** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-namespaces ()
-  (cdr (assoc 'namespaces (literate-smalltalk-request "namespaces"))))
+  (cdr (assoc 'namespaces (literate-smalltalk-request "api/Namespaces"))))
 
 (defun literate-smalltalk-select-namespace ()
   (literate-smalltalk-helm-select-list "namespace" (literate-smalltalk-namespaces)))
 #+END_SRC
 **** pharo
-#+BEGIN_SRC smalltalk :side class :cat "accessing"
-namespaces
+#+BEGIN_SRC smalltalk :side class :cat "query api"
+apiNamespaces: req
 
 	| names |
-	names := (Smalltalk globals allClasses collect: [ :each |
-		          each category asString ]) asSet asSortedCollection.
-	^ { (#status -> #success). (#namespaces -> names) } asDictionary
+	names := (Smalltalk globals allClasses collect: [ :each | each category asString ]) asSet
+		         asSortedCollection.
+	^ {
+		  (#status -> #success).
+		  (#namespaces -> names) } asDictionary
 #+END_SRC
 **** cache relationship between namespace and class
 It is slow to build such indexed from remote pharo, let store it to a global variable and cache it to local file.
@@ -619,23 +620,23 @@ It is slow to build such indexed from remote pharo, let store it to a global var
   (let ((class (thing-at-point 'symbol)))
     (message "%s's namespace is %s" class (literate-smalltalk-namespace-of-a-class class))))
 #+END_SRC
-
-
 *** classes for one namespace
 **** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-classes (namespace)
   (mapcar 'identity
-          (cdr (assoc 'classes (literate-smalltalk-request (concat "classes/" namespace))))))
+          (cdr (assoc 'classes (literate-smalltalk-request "api/Classes"
+                                                           :params `(("namespace" . ,namespace)))))))
 
 (defun literate-smalltalk-select-a-class (namespace)
   (literate-smalltalk-helm-select-list "Please select a namespace: " (literate-smalltalk-classes namespace)))
 #+END_SRC
 **** Pharo
-#+BEGIN_SRC smalltalk :side class :cat "accessing"
-classes: namespace
+#+BEGIN_SRC smalltalk :side class :cat "query api"
+apiClasses: req
 
-	| resultList |
+	| namespace resultList |
+	namespace := req at: #namespace.
 	resultList := Smalltalk globals allClasses select: [ :each |
 		              each category asString = namespace ].
 	^ {
@@ -648,14 +649,14 @@ This bases on [[https://github.com/pharo-project/pharo/blob/Pharo9.0/src/RPackag
 **** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-packages ()
-  (cdr (assoc 'packages (literate-smalltalk-request "packages"))))
+  (cdr (assoc 'packages (literate-smalltalk-request "api/Packages"))))
 
 (defun literate-smalltalk-select-package ()
   (literate-smalltalk-helm-select-list "Please select a package: " (literate-smalltalk-packages)))
 #+END_SRC
 **** pharo
-#+BEGIN_SRC smalltalk :side class :cat "accessing"
-packages
+#+BEGIN_SRC smalltalk :side class :cat "query api"
+apiPackages: req
 
 	^ {
 		  (#status -> #success).
@@ -665,16 +666,18 @@ packages
 **** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-package-tags (package)
-  (cdr (assoc 'tags (literate-smalltalk-request (concat "package/tags/" package)))))
+  (cdr (assoc 'tags (literate-smalltalk-request "api/PackageTags"
+                                                :params `(("package" . ,package))))))
 
 (defun literate-smalltalk-select-package-tag (package)
   (literate-smalltalk-helm-select-list "Please select a package tag: " (literate-smalltalk-package-tags package)))
 #+END_SRC
 **** pharo
-#+BEGIN_SRC smalltalk :side class :cat "accessing"
-packageTags: packageName
+#+BEGIN_SRC smalltalk :side class :cat "query api"
+apiPackageTags: req
 
-	| package tags |
+	| packageName package tags |
+	packageName := req at: #package.
 	package := RPackageOrganizer default
 		           packageNamed: packageName asSymbol
 		           ifAbsent: RPackage new.
@@ -692,17 +695,18 @@ packageTags: packageName
 **** Emacs
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-package-extensions (package)
-  (cdr (assoc 'methods (literate-smalltalk-request (concat "package/extensions/" package)))))
+  (cdr (assoc 'methods (literate-smalltalk-request "api/PackageExtensions" :params `(("package" . ,package))))))
 
 (defun literate-smalltalk-select-package-extension (package)
   (literate-smalltalk-helm-select-list "Please select a package extension: " (literate-smalltalk-package-extensions package)))
 #+END_SRC
 
 **** pharo
-#+BEGIN_SRC smalltalk :side class :cat "accessing"
-packageExtensions: packageName
+#+BEGIN_SRC smalltalk :side class :cat "query api"
+apiPackageExtensions: req
 
-	| package methods |
+	| packageName package methods |
+	packageName := req at: #package.
 	package := RPackageOrganizer default
 		           packageNamed: packageName asSymbol
 		           ifAbsent: RPackage new.
@@ -777,21 +781,19 @@ packageExtensions: packageName
 **** get class definition
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-class (class)
-  (literate-smalltalk-class-definition-string (cdr (assoc 'result (literate-smalltalk-request (concat "class/" class))))))
+  (literate-smalltalk-class-definition-string (cdr (assoc 'result (literate-smalltalk-request "api/ClassDef"
+                                                                                              :params `(("class" . ,class)))))))
 #+END_SRC
 **** get categories of one class
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-categories (class)
-  (cdr (assoc 'result (literate-smalltalk-request (concat "cats/" class)))))
-
-;; (defun literate-smalltalk-select-a-category (namespace class)
-;;   (literate-smalltalk-helm-select-list "Please select a namespace: " (literate-smalltalk-categories namespace class)))
+  (cdr (assoc 'result (literate-smalltalk-request "api/ClassCats" :params `(("class" . ,class))))))
 #+END_SRC
 **** get methods of one category
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-category-methods (class category side)
   (mapcar 'identity
-          (cdr (assoc 'methods (literate-smalltalk-request "cat/methods"
+          (cdr (assoc 'methods (literate-smalltalk-request "api/CatMethods"
                                                            :params `(("class" . ,class)
                                                                      ("cat" . ,category)
                                                                      ("side" . ,side)))))))
@@ -804,7 +806,7 @@ packageExtensions: packageName
   (unless side
     (error "Please specifiy the side of current method!"))
   (let* ((resp (literate-smalltalk-request
-                "method/source"
+                "api/MethodSource"
                 :params `(("class" . ,class)
                           ("name" . ,method)
                           ("side" . ,side))))
@@ -813,23 +815,18 @@ packageExtensions: packageName
 #+END_SRC
 *** Pharo
 **** class definition
-#+BEGIN_SRC smalltalk :side class :cat "accessing"
-classDef: className
+#+BEGIN_SRC smalltalk :side class :cat "query api"
+apiClassDef: req
 
-	| class instanceSide classSide result |
+	| className class instanceSide classSide result |
+	className := req at: #class.
 	class := Smalltalk at: className asSymbol.
 	instanceSide := Dictionary new.
 	instanceSide at: #class put: className.
 	instanceSide at: #superclass put: class superclass printString.
-	instanceSide
-		at: #instvars
-		put: (self asStringArray: class instVarNames).
-	instanceSide
-		at: #classvars
-		put: (self asStringArray: class classVarNames).
-	instanceSide
-		at: #poolvars
-		put: (self asStringArray: class sharedPools).
+	instanceSide at: #instvars put: (self asStringArray: class instVarNames).
+	instanceSide at: #classvars put: (self asStringArray: class classVarNames).
+	instanceSide at: #poolvars put: (self asStringArray: class sharedPools).
 	instanceSide at: #package put: class category.
 	instanceSide at: #comment put: class comment.
 
@@ -838,9 +835,7 @@ classDef: className
 	classSide at: #class put: className.
 	classSide at: #superclass put: class superclass printString.
 	classSide at: #instvars put: (self asStringArray: class instVarNames).
-	classSide
-		at: #classvars
-		put: (self asStringArray: class classVarNames).
+	classSide at: #classvars put: (self asStringArray: class classVarNames).
 	classSide at: #poolvars put: (self asStringArray: class sharedPools).
 	result := Dictionary new.
 	result at: #instance put: instanceSide.
@@ -850,10 +845,11 @@ classDef: className
 		  (#result -> result) } asDictionary
 #+END_SRC
 **** get class categories
-#+BEGIN_SRC smalltalk :side class :cat "accessing"
-classCats: className
+#+BEGIN_SRC smalltalk :side class :cat "query api"
+apiClassCats: req
 
-	| class cats result |
+	| className class cats result |
+	className := req at: #class.
 	result := Dictionary new.
 	class := Smalltalk at: className asSymbol.
 	cats := Set new.
@@ -870,10 +866,13 @@ classCats: className
 		  (#result -> result) } asDictionary
 #+END_SRC
 **** get methods in one class category
-#+BEGIN_SRC smalltalk :side class :cat "accessing"
-catMethods: className category: cat side: side
+#+BEGIN_SRC smalltalk :side class :cat "query api"
+apiCatMethods: req
 
-	| class methods allMethods |
+	| className cat side class methods allMethods |
+	className := req at: #class.
+	cat := req at: #cat.
+	side := req at: #side.
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
@@ -887,12 +886,14 @@ catMethods: className category: cat side: side
 		  (#methods -> (methods collect: [ :each | each key asString ]) asSortedCollection) }
 		  asDictionary
 #+END_SRC
-*
 **** get method source
-#+BEGIN_SRC smalltalk :side class :cat "accessing"
-methodSource: className name: methodName side: side
+#+BEGIN_SRC smalltalk :side class :cat "query api"
+apiMethodSource: req
 
-	| class method |
+	| className methodName side class method |
+	className := req at: #class.
+	methodName := req at: #name.
+	side := req at: #side.
 	class := Smalltalk at: className asSymbol.
 	class := side = #class
 		         ifTrue: [ class class ]
@@ -909,7 +910,7 @@ methodSource: className name: methodName side: side
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-eval (code inspector-p)
   (let ((resp (literate-smalltalk-request
-               "eval"
+               "api/EvalCode"
                :type "POST"
                :data `(("code" . ,code)
                        ("inspector" . ,(if inspector-p
@@ -923,7 +924,7 @@ methodSource: className name: methodName side: side
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-eval-bindings ()
   (interactive)
-  (let ((resp (literate-smalltalk-request "eval/bindings")))
+  (let ((resp (literate-smalltalk-request "api/EvalBindings")))
     (if (string= "success" (cdr (assoc 'status resp)))
       (cdr (assoc 'message resp))
       (error "Failed to list bindings:'%s'!" (cdr (assoc 'message resp))))))
@@ -931,10 +932,12 @@ methodSource: className name: methodName side: side
 
 *** Pharo
 **** eval a code text
-#+BEGIN_SRC smalltalk :side class :cat "compile"
-evalCode: code openInspector: openInspector
+#+BEGIN_SRC smalltalk :side class :cat "compiling api"
+apiEvalCode: req
 
-	| status result receiver evaluationContext |
+	| code openInspector status result receiver evaluationContext |
+	code := req at: #code.
+	openInspector := (req at: #inspector ifAbsent: 'false') = 'true'.
 	status := #success.
 	receiver := interactionModel doItReceiver.
 	evaluationContext := interactionModel doItContext.
@@ -954,8 +957,8 @@ evalCode: code openInspector: openInspector
 		  (#status -> status) } asDictionary
 #+END_SRC
 **** list bindings of all evaluated codes.
-#+BEGIN_SRC smalltalk :side class :cat "compile"
-evalBindings
+#+BEGIN_SRC smalltalk :side class :cat "compiling api"
+apiEvalBindings: req
 
 	self bringToFront.
 	GTInspector inspect: interactionModel bindings.
@@ -1085,7 +1088,7 @@ evalBindings
         (error "Failed to get class information."))
       (push (cons "comment" comment) instance-data)
       (let ((resp (literate-smalltalk-request
-                   "compile/class"
+                   "api/CompileClass"
                    :data `(("instance" . ,(json-encode instance-data))
                              ("class" . ,(json-encode class-data)))
                    :type "POST")))
@@ -1107,7 +1110,7 @@ evalBindings
   (unless category
     (error "Please specifiy the category of current method!"))
   (let* ((resp (literate-smalltalk-request
-                "compile/method"
+                "api/CompileMethod"
                 :data `(("class" . ,class)
                           ("category" . ,category)
                           ("source" . ,code)
@@ -1162,7 +1165,7 @@ evalBindings
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-format-code (code-start-point code type)
   (let ((resp (literate-smalltalk-request
-               "format/code"
+               "api/FormatCode"
                :data `(("source" . ,(encode-coding-string code 'latin-1-mac))
                          ("type" . ,type))
                :type "POST")))
@@ -1178,7 +1181,7 @@ evalBindings
 **** API request to complete code at position
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-request-complete-code (class source)
-  (literate-smalltalk-request "completion/method"
+  (literate-smalltalk-request "api/CompletionMethod"
                               :data `(("class" . ,(or class ""))
                                       ("source" . ,(encode-coding-string source 'latin-1-mac)))
                               :type "POST"))
@@ -1188,7 +1191,7 @@ evalBindings
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-request-delete-class (class)
   (literate-smalltalk-request
-   "remove/class"
+   "api/RemoveClass"
    :type "GET"
    :params `(("class" . ,class))))
 #+END_SRC
@@ -1196,8 +1199,7 @@ evalBindings
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-request-delete-class-method (class method side)
   (literate-smalltalk-request
-   "method/remove"
-   :type "GET"
+   "api/RemoveSelector"
    :params `(("class" . ,class)
              ("name" . ,method)
              ("side" . ,side))))
@@ -1313,10 +1315,12 @@ evalBindings
 #+END_SRC
 *** Pharo
 **** compile class
-#+BEGIN_SRC smalltalk :side class :cat "compile"
-compileClass: instDef class: classDef
+#+BEGIN_SRC smalltalk :side class :cat "compiling api"
+apiCompileClass: req
 
-	| parent class status instvars classvars |
+	| instDef classDef parent class status instvars classvars |
+	instDef := (NeoJSONReader fromString: (req at: #instance)).
+	classDef := (NeoJSONReader fromString: (req at: #class)).
 	status := #success.
 	instvars := ''.
 	(instDef at: #instvars) ifNotNil: [
@@ -1349,10 +1353,11 @@ compileClass: instDef class: classDef
 	^ { (#status -> status) } asDictionary
 #+END_SRC
 **** remove a class
-#+BEGIN_SRC smalltalk :side class :cat "compile"
-removeClass: className
+#+BEGIN_SRC smalltalk :side class :cat "compiling api"
+apiRemoveClass: req
 
-	| class |
+	| className class |
+	className := req at: #class.
 	class := Smalltalk at: className asSymbol ifAbsent: nil.
 	class ifNil: [
 		^ {
@@ -1364,10 +1369,14 @@ removeClass: className
 		  (#message -> '') } asDictionary
 #+END_SRC
 **** compile method
-#+BEGIN_SRC smalltalk :side class :cat "compile"
-compileMethod: className category: cat source: source side: side
+#+BEGIN_SRC smalltalk :side class :cat "compiling api"
+apiCompileMethod: req
 
-	| class status selector critiques message |
+	| className cat source side class status selector critiques message |
+	className := req at: #class.
+	cat := req at: #category.
+	source := req at: #source.
+	side := req at: #side.
 	class := Smalltalk at: className asSymbol.
 	side = #class ifTrue: [ class := class class ].
 
@@ -1398,17 +1407,20 @@ compileMethod: className category: cat source: source side: side
 		  (#critiques -> critiques) } asDictionary
 #+END_SRC
 **** remove a method
-#+BEGIN_SRC smalltalk :side class :cat "compile"
-removeSelector: className name: methodName side: side
+#+BEGIN_SRC smalltalk :side class :cat "compiling api"
+apiRemoveSelector: req
 
-	| class status message |
+	| className methodName side class status message |
+	className := req at: #class.
+	methodName := req at: #name.
+	side := req at: #side.
 	class := Smalltalk at: className asSymbol.
 	class := side = #class
 		         ifTrue: [ class class ]
 		         ifFalse: [ class ].
 	status := #success.
 	message := ''.
-	[ class removeSelector: methodName asSymbol]
+	[ class removeSelector: methodName asSymbol ]
 		on: Exception
 		do: [ :ex |
 			message := ex asString.
@@ -1418,10 +1430,12 @@ removeSelector: className name: methodName side: side
 		  (#message -> message) } asDictionary
 #+END_SRC
 **** format code
-#+BEGIN_SRC smalltalk :side class :cat "compile"
-formatCode: source type: type
+#+BEGIN_SRC smalltalk :side class :cat "compiling api"
+apiFormatCode: req
 
-	| tree errBlock |
+	| source type tree errBlock |
+	source := req at: #source.
+	type := req at: #type.
 	errBlock := [ :msg :pos |
 	            ^ {
 		              (#status -> #failed).
@@ -1435,10 +1449,12 @@ formatCode: source type: type
 		  (#source -> tree formattedCode) } asDictionary
 #+END_SRC
 **** completion
-#+BEGIN_SRC smalltalk :side class :cat "compile"
-completion: className source: source
+#+BEGIN_SRC smalltalk :side class :cat "compiling api"
+apiCompletionMethod: req
 
-	| class context entities |
+	| className source class context entities |
+	className := req at: #class.
+	source := req at: #source.
 	class := Smalltalk at:
 		         (className ifEmpty: [ #GTPlayground ] ifNotEmpty: [ className asSymbol ]).
 	context := CompletionContext
@@ -1559,16 +1575,43 @@ We will try to use [[http://geoff.greer.fm/ag/][silver searcher]] as the xref ba
 (defun literate-smalltalk-browse-class ()
   (interactive)
   (let ((class-name (literate-smalltalk-current-symbol-at-point)))
-    (literate-smalltalk-request (concat "browse/class/" class-name))))
+    (literate-smalltalk-request "api/BrowseClass" :params `(("class" . ,class-name)))))
 #+END_SRC
 
 *** Pharo
-#+BEGIN_SRC smalltalk :side class :cat "utilities"
-browseClass: className
+#+BEGIN_SRC smalltalk :side class :cat "pharo api"
+apiBrowseClass: req
 
-	| class |
+	| className class |
+	className := req
+		             at: #class
+		             ifAbsent: [
+		             self abortReq: req status: 'error' message: 'No class name is specified.' ].
 	class := Smalltalk at: className asSymbol.
 	Smalltalk tools browser openOnClass: class.
+	self bringToFront.
+	^ {
+		  (#status -> #success).
+		  (#message -> 'Opend in Pharo') } asDictionary
+#+END_SRC
+** browse implementors in Pharo
+*** Emacs
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-browse-implementors ()
+  (interactive)
+  (let ((name (literate-smalltalk-current-symbol-at-point)))
+    (literate-smalltalk-request "api/BrowseImplementors" :params `(("name" . ,name)))))
+#+END_SRC
+*** Pharo
+#+BEGIN_SRC smalltalk :side class :cat "pharo api"
+apiBrowseImplementors: req
+
+	| methodName |
+	methodName := req
+		              at: #name
+		              ifAbsent: [
+		              self abortReq: req status: 'error' message: 'No name is specified.' ].
+	SystemNavigation default browseAllImplementorsOf: methodName asSymbol.
 	self bringToFront.
 	^ {
 		  (#status -> #success).
@@ -1867,20 +1910,20 @@ y
 #+END_SRC
 ** ban some critiques rules
 #+BEGIN_SRC smalltalk :type code
-{ #RBBadMessageRule. #ReBadMessageRule. #RBImplementedNotSentRule. #ReImplementedNotSentRule.
- #RBUtilityMethodsRule. #ReUtilityMethodsRule. #ReUncommonMessageSendRule}
-	do: [ :name |
-		| class |
-		class := Smalltalk at: name ifAbsent: [ nil ].
-		class ifNotNil: [ class enabled: false ]
-		]
+{ #RBBadMessageRule. #ReBadMessageRule. #RBImplementedNotSentRule.
+#ReImplementedNotSentRule. #RBUtilityMethodsRule. #ReUtilityMethodsRule.
+#ReUncommonMessageSendRule } do: [ :name |
+	| class |
+	class := Smalltalk at: name ifAbsent: [ nil ].
+	class ifNotNil: [ class enabled: false ] ]
 #+END_SRC
 ** test
 #+BEGIN_SRC smalltalk :type code
 Metacello new
-		    baseline: 'LiterateSmalltalk';
-		    repository: 'filetree:///home/jingtao/projects/literate-smalltalk/';
-		    onConflict: [ :ex | ex allow ];
-		    load.
-(Metacello image baseline: 'LiterateSmalltalk') list first repositories list first spec description.
+	baseline: 'LiterateSmalltalk';
+	repository: 'filetree:///home/jingtao/projects/literate-smalltalk/';
+	onConflict: [ :ex | ex allow ];
+	load.
+(Metacello image baseline: 'LiterateSmalltalk') list first repositories list first spec
+	description
 #+END_SRC
