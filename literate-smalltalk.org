@@ -347,7 +347,8 @@ literate-smalltalk-smalltalk-font-lock-keywords
 (defvar literate-smalltalk-rest-server "http://localhost:9092/")
 (defvar literate-smalltalk-last-response nil)
 (cl-defun literate-smalltalk-request (path &key params data (type "GET"))
-  (let ((resp nil))
+  (setf literate-smalltalk-last-response nil)
+  (let ((request-backend 'url-retrieve))
     (request (concat literate-smalltalk-rest-server path)
         :params params
         :parser 'json-read
@@ -360,8 +361,8 @@ literate-smalltalk-smalltalk-font-lock-keywords
                      (case (request-response-status-code response)
                        (200 (setf resp (request-response-data response)))
                        (500 (error "Pharo failed:%s" (cdr (assoc 'message resp))))
-                       (t (error "Failed to request to remote pharo:%s" response))))))
-    resp))
+                       (t (error "Failed to request to remote pharo:%s" response)))))))
+  (request-response-data literate-smalltalk-last-response))
 #+END_SRC
 * baseline for pharo
 :PROPERTIES:
@@ -928,6 +929,15 @@ apiMethodSource: req
     (if (string= "success" (cdr (assoc 'status resp)))
       (cdr (assoc 'message resp))
       (error "Failed to list bindings:'%s'!" (cdr (assoc 'message resp))))))
+#+END_SRC
+**** eval current line or selected region
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-eval-current-line-or-selected-region ()
+  (interactive)
+  (let ((code (if (region-active-p)
+                (buffer-substring-no-properties (region-beginning) (region-end))
+                (buffer-substring-no-properties (line-beginning-position) (line-end-position)))))
+    (message (literate-smalltalk-eval code (not (null current-prefix-arg))))))
 #+END_SRC
 
 *** Pharo

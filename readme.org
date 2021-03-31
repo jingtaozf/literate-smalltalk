@@ -18,6 +18,7 @@
   - [[#delete-current-class-or-method][delete current class or method]]
   - [[#update-source-code-block-from-pharo][update source code block from Pharo]]
   - [[#eval-code-repl][eval code (REPL)]]
+  - [[#browse-class-or-implementors-in-pharo][browse class or implementors in Pharo]]
   - [[#compile-all-source-code-blocks-inside-a-section][compile all source code blocks inside a section]]
 - [[#references][References]]
 
@@ -170,6 +171,12 @@ For me, I will create an individual org file for one project as an REPL for it.
 #+PROPERTY: literate-lang smalltalk
 #+PROPERTY: literate-load yes
 #+end_example
+
+To just eval current line or selected region, you can run command =literate-smalltalk-eval-current-line-or-selected-region=.
+
+** browse class or implementors in Pharo
+The Emacs command To browse class in Pharo Window is =literate-smalltalk-browse-class=.
+The Emacs command To browse implementors in Pharo Window is =literate-smalltalk-browse-implementors=.
 ** compile all source code blocks inside a section
 To compile all source code blocks inside a section, please invoke the Emacs command [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#execute-all-source-codes-in-current-header][literate-smalltalk-execute-current-header]].
 It will compiling all code blocks from current point to the end of current section.
