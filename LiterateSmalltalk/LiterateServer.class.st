@@ -43,11 +43,11 @@ LiterateServer class >> apiBrowseImplementors: req [
 	| methodName |
 	methodName := req
 		              at: #name
-		              ifAbsent: [
+		              ifAbsent: [ 
 		              self abortReq: req status: 'error' message: 'No name is specified.' ].
 	SystemNavigation default browseAllImplementorsOf: methodName asSymbol.
 	self bringToFront.
-	^ {
+	^ { 
 		  (#status -> #success).
 		  (#message -> 'Opend in Pharo') } asDictionary
 ]
@@ -426,10 +426,6 @@ LiterateServer class >> dispatch: req [
 		           at: #api
 		           ifAbsent: [ self abortReq: req status: 'fatal' message: 'No api specified.' ].
 	methodName := ('api' , apiName , ':') asSymbol.
-	Transcript
-		show: 'check method:';
-		show: methodName asString;
-		cr.
 	(self class canUnderstand: methodName) ifFalse: [
 		self abortReq: req status: 'fatal' message: 'No implementation for this api' ].
 	^ self perform: methodName with: req
