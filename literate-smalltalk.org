@@ -25,6 +25,8 @@
   - [[#mode-definition][mode definition]]
   - [[#add-to-auto-mode-alist][add to auto mode alist]]
 - [[#utilities][utilities]]
+  - [[#encode-string][encode string]]
+  - [[#decode-string][decode string]]
   - [[#select-helm-marked-candidates][select helm marked candidates]]
   - [[#forward-to-begin-of-function][forward to begin of function]]
   - [[#region-of-current-symbol][region of current symbol]]
@@ -257,6 +259,25 @@ literate-smalltalk-smalltalk-font-lock-keywords
 (setq auto-mode-alist (append '(("\\.st\\'" . literate-smalltalk-code-mode)) auto-mode-alist))
 #+END_SRC
 * utilities
+** encode string
+#+BEGIN_SRC elisp
+(cl-defun literate-smalltalk-encode-string (code &key unquote-string)
+  (encode-coding-string
+   (if unquote-string
+     (replace-regexp-in-string "''" "'" code)
+     code)
+   'latin-1-mac))
+#+END_SRC
+** decode string
+#+BEGIN_SRC elisp
+(cl-defun literate-smalltalk-decode-string (code &key quote-string)
+  (decode-coding-string
+   (if quote-string
+     (replace-regexp-in-string "'" "''" code)
+     code)
+   'latin-1-mac))
+#+END_SRC
+
 ** select helm marked candidates
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-helm-select-list (prompt list)
@@ -370,16 +391,13 @@ literate-smalltalk-smalltalk-font-lock-keywords
 :END:
 ** definition
 #+BEGIN_SRC smalltalk
-"
-Baseline of LiterateSmalltalk.
-"
 BaselineOf subclass: #BaselineOfLiterateSmalltalk
     instanceVariableNames: ''
     classVariableNames: ''
-    package: 'BaselineOfLiterateSmalltalk'
-----------------------
+    package: 'BaselineOfLiterateSmalltalk'.
 BaselineOfLiterateSmalltalk class
-    instanceVariableNames: ''
+    instanceVariableNames: ''.
+BaselineOfLiterateSmalltalk comment: 'Baseline of LiterateSmalltalk.'
 #+END_SRC
 ** spec
 #+BEGIN_SRC smalltalk :cat "baseline" :side instance
@@ -401,16 +419,13 @@ baselineOf: spec
 * a Teapot server to handle request
 ** definition
 #+BEGIN_SRC smalltalk
-"
-The REST Server for LiterateSmalltalk.
-"
 Object subclass: #LiterateServer
     instanceVariableNames: ''
     classVariableNames: 'Server Started interactionModel transcriptLogStream'
-    package: 'LiterateSmalltalk'
-----------------------
+    package: 'LiterateSmalltalk'.
 LiterateServer class
-    instanceVariableNames: ''
+    instanceVariableNames: ''.
+LiterateServer comment: 'The REST Server for LiterateSmalltalk.'
 #+END_SRC
 ** the Server accessor
 *** reader
@@ -743,12 +758,6 @@ apiPackageExtensions: req
   (let ((instance (cdr (assoc 'instance resp)))
         (class (cdr (assoc 'class resp))))
     (with-temp-buffer
-      (insert "\"")
-      (newline)
-      (insert (decode-coding-string (cdr (assoc 'comment instance)) 'latin-1-mac))
-      (newline)
-      (insert "\"")
-      (newline)
       (insert
        (format "%s subclass: #%s"
                (cdr (assoc 'superclass instance))
@@ -760,19 +769,19 @@ apiPackageExtensions: req
           (insert (format "    %s '%s'"  (car each) text))
           (newline)))
       (insert (format
-               "    package: '%s'"
+               "    package: '%s'."
                (cdr (assoc 'package instance))))
-      (newline)
-      (insert literate-smalltalk-separator)
       (newline)
 
       (insert (format "%s class" (cdr (assoc 'class class))))
       (newline)
       (dolist (each literate-smalltalk-class-side-template)
-        (let* ((items (cdr (assoc (cdr each) instance)))
+        (let* ((items (cdr (assoc (cdr each) class)))
                (text  (string-join items " ")))
-          (insert (format "    %s '%s'"  (car each) text))
+          (insert (format "    %s '%s'."  (car each) text))
           (newline)))
+      (insert (format "%s comment: '%s'" (cdr (assoc 'class class))
+                      (literate-smalltalk-decode-string (cdr (assoc 'comment instance)) :quote-string t)))
       (trim-string (buffer-string)))))
 #+END_SRC
 **** get class definition
@@ -808,7 +817,7 @@ apiPackageExtensions: req
                           ("name" . ,method)
                           ("side" . ,side))))
          (source (cdr (assoc 'source resp))))
-    (decode-coding-string source 'latin-1-mac)))
+    (literate-smalltalk-decode-string source)))
 #+END_SRC
 *** Pharo
 **** class definition
@@ -974,131 +983,14 @@ apiEvalBindings: req
 #+END_SRC
 ** compile
 *** Emacs
-**** parse a regex
-#+BEGIN_SRC elisp
-(defvar literate-smalltalk-regexp-tokens
-    '((:Wd "\\([A-z]+[0-9]*\\)")
-      (:Ws "\\([A-z 0-9]*\\)")
-      (:Wa "\\([A-z\\.0-9]*\\)")
-      (:Wc "\\([A-z\-0-9]*\\)")
-      (:D  "\\([0-9]*\\)")
-      (:sp "[ \s\t\n\r]*")
-      (:cr "\r")
-      (:lf "\n")))
-
-(defun literate-smalltalk-regexp-is-capture-token (sym)
-  (let ((pattern (assoc sym literate-smalltalk-regexp-tokens)))
-    (and (symbolp sym)
-         pattern
-         (string-match "^\\\\\(.*\\\\\)$" (cadr pattern)))))
-
-(defun literate-smalltalk-regexp-parse (str pattern)
-  (let ((regexp (reduce 'concat
-                        (loop for each in pattern collect
-                                                  (let ((re (assoc each literate-smalltalk-regexp-tokens)))
-                                                    (if re (cadr re) each)))))
-        (re-len (loop for each in pattern
-                      sum (if (literate-smalltalk-regexp-is-capture-token each) 1 0))))
-    (with-temp-buffer
-      (insert str)
-      (goto-char (point-min))
-      (when (re-search-forward regexp nil t)
-        (loop for i from 1 to re-len collect
-              (match-string i))))))
-
-(defun literate-smalltalk-regexp-parse-and-bind (str pattern bindings binder)
-  (let ((parsed (literate-smalltalk-regexp-parse str pattern)))
-    (when parsed
-      (loop for binding in bindings for j from 0 do
-        (funcall
-          binder
-          binding
-          (nth j parsed)))
-      t)))
-#+END_SRC
-
-**** how to parse a class message
-#+BEGIN_SRC elisp
-(cl-defun literate-smalltalk-parse-message (&key code pattern bindings to-split)
-  (lexical-let ((data '()))
-    (let* ((binder #'(lambda (key value)
-                       (push (cons key value) data)))
-           (%split-string #'(lambda (string)
-                              (if (null string)
-                                '()
-                                (remove-if (lambda (x) (equal x "")) (split-string string "\s"))))))
-      (if (literate-smalltalk-regexp-parse-and-bind code pattern bindings binder)
-        (progn
-          (dolist (k to-split)
-            (let ((string (cdr (assoc k data))))
-              (setf (cdr (assoc k data))
-                      (if (null string) '()
-                        (remove-if (lambda (x) (equal x "")) (funcall %split-string string))))))
-          data)
-        (progn (message "literate smalltalk: syntax error")
-               nil)))))
-#+END_SRC
-**** parse class definition
-#+BEGIN_SRC elisp
-(defvar literate-smalltalk-class-side-pattern
-    '(:Wd :sp "class" :sp "instanceVariableNames:" :sp "'" :Ws "'"))
-(defun literate-smalltalk-parse-class-definition (code)
-  (literate-smalltalk-parse-message
-   :code code
-   :pattern literate-smalltalk-class-side-pattern
-   :bindings '(:name :instvars)
-   :to-split '(:instvars)))
-#+END_SRC
-
-**** parse subclass definition
-#+BEGIN_SRC elisp
-(defvar literate-smalltalk-subclass-pattern
-    '(:Wa :sp "subclass:" :sp "#" :Wd
-      :sp "instanceVariableNames:" :sp "'" :Ws "'"
-      :sp "classVariableNames:"    :sp "'" :Ws "'"
-      ;; :sp "poolDictionaries:"      :sp "'" :Ws "'"
-      :sp "package:"              :sp "'" :Wc "'"
-      ))
-(defun literate-smalltalk-parse-subclass-definition (code)
-  (literate-smalltalk-parse-message
-   :code code
-   :pattern literate-smalltalk-subclass-pattern
-   :bindings '(:super :name :instvars :classvars :package)
-   :to-split '(:instvars :classvars)))
-#+END_SRC
-
 **** compile class
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-compile-class (code)
-  (let (comment instance-code class-code anchor-pos)
-    (with-temp-buffer
-      (insert code)
-      (goto-char (point-min))
-      (search-forward-regexp "^\"$")
-      (setf anchor-pos (point))
-      (search-forward-regexp "^\"$")
-      (forward-line -1)
-      (setf comment (buffer-substring-no-properties anchor-pos (line-end-position)))
-      (forward-line 2)
-      (setf anchor-pos (line-beginning-position))
-      (search-forward literate-smalltalk-separator)
-      (setf instance-code (buffer-substring-no-properties anchor-pos (line-beginning-position)))
-      (setf class-code (buffer-substring-no-properties (line-end-position) (point-max))))
-    (let* ((instance-data (literate-smalltalk-parse-subclass-definition instance-code))
-           (class-data (literate-smalltalk-parse-class-definition class-code)))
-      (unless instance-data
-        (message "instance-code:'%s'" instance-code)
-        (user-error "Failed to get subclass information."))
-      (unless class-data
-        (message "class-data: '%s'" class-code)
-        (user-error "Failed to get class information."))
-      (push (cons "comment" comment) instance-data)
-      (let ((resp (literate-smalltalk-request
-                   "api/CompileClass"
-                   :data `(("instance" . ,(json-encode instance-data))
-                             ("class" . ,(json-encode class-data)))
-                   :type "POST")))
-        (message "Compile class %s." (cdr (assoc 'status resp)))))))
+  (let ((resp (literate-smalltalk-request
+               "api/CompileClass"
+               :data `(("code" . ,(literate-smalltalk-encode-string code)))
+               :type "POST")))
+    (message "Compile class %s." (cdr (assoc 'status resp)))))
 #+END_SRC
 **** compile method
 #+BEGIN_SRC elisp
@@ -1172,7 +1064,7 @@ apiEvalBindings: req
 (defun literate-smalltalk-format-code (code-start-point code type)
   (let ((resp (literate-smalltalk-request
                "api/FormatCode"
-               :data `(("source" . ,(encode-coding-string code 'latin-1-mac))
+               :data `(("source" . ,(literate-smalltalk-encode-string code))
                          ("type" . ,type))
                :type "POST")))
     (unless (string= "success" (cdr (assoc 'status resp)))
@@ -1181,7 +1073,7 @@ apiEvalBindings: req
       (user-error "Failed to format code at %s:%s!"
              (cdr (assoc 'pos resp))
              (cdr (assoc 'msg resp))))
-    (decode-coding-string (cdr (assoc 'source resp)) 'latin-1-mac)))
+    (literate-smalltalk-decode-string (cdr (assoc 'source resp)))))
 
 #+END_SRC
 **** API request to complete code at position
@@ -1189,7 +1081,7 @@ apiEvalBindings: req
 (defun literate-smalltalk-request-complete-code (class source)
   (literate-smalltalk-request "api/CompletionMethod"
                               :data `(("class" . ,(or class ""))
-                                      ("source" . ,(encode-coding-string source 'latin-1-mac)))
+                                      ("source" . ,(literate-smalltalk-encode-string source)))
                               :type "POST"))
 #+END_SRC
 
@@ -1216,6 +1108,8 @@ apiEvalBindings: req
   (interactive)
   (let* ((context-info (second (org-element-context)))
          (block-arguments (third (org-babel-get-src-block-info)))
+         (info (org-babel-get-src-block-info))
+         (body (nth 1 info))
          (code (plist-get context-info :value))
          (code-start-point (save-excursion
                              (goto-char (plist-get context-info :begin))
@@ -1223,7 +1117,9 @@ apiEvalBindings: req
                              (line-beginning-position)))
          (type (aif (cdr (assoc :type block-arguments))
                  it
-                 "method"))
+                 (if (search "subclass: #" body)
+                   'class
+                   'method)))
          (formatted-code (literate-smalltalk-format-code code-start-point code type)))
     (replace-region-contents
      (plist-get context-info :begin)
@@ -1324,38 +1220,26 @@ apiEvalBindings: req
 #+BEGIN_SRC smalltalk :side class :cat "compiling api"
 apiCompileClass: req
 
-	| instDef classDef parent class status instvars classvars |
-	instDef := (NeoJSONReader fromString: (req at: #instance)).
-	classDef := (NeoJSONReader fromString: (req at: #class)).
+	| receiver evaluationContext status |
 	status := #success.
-	instvars := ''.
-	(instDef at: #instvars) ifNotNil: [
-		instvars := self elementsString: (instDef at: #instvars) ].
-	classvars := ''.
-	(instDef at: #classvars) ifNotNil: [
-		classvars := self elementsString: (instDef at: #classvars) ].
+
+	receiver := interactionModel doItReceiver.
+	evaluationContext := interactionModel doItContext.
 
 	"Looks a bit kludgy, but currently I dont know how to make it better. TODO: refactor"
-	parent := Smalltalk at: (instDef at: #super) asSymbol.
 	[
-	class := parent
-		         subclass: (instDef at: #name) asSymbol
-		         instanceVariableNames: instvars
-		         classVariableNames: classvars
-		         poolDictionaries: ''
-		         category: (instDef at: #package) ]
+	receiver class compiler
+		source: (req at: #code);
+		context: evaluationContext;
+		receiver: receiver;
+		requestor: nil;
+		"As it is a remote request, we allow compiler handle messages such as exceptions"
+			evaluate ]
 		on: Error
 		do: [ :e |
 			^ {
-				  (#status -> #instFailed).
+				  (#status -> #failed).
 				  (#message -> e asString) } asDictionary ].
-	class := Smalltalk at: (instDef at: #name) asSymbol ifAbsent: [ nil ].
-	class comment: (instDef at: #comment).
-	"On Pharo, there were a strange exception when using the safe form."
-	instvars := ''.
-	(classDef at: #instvars) ifNotNil: [
-		instvars := self elementsString: (classDef at: #instvars) ].
-	class class instanceVariableNames: instvars.
 	^ { (#status -> status) } asDictionary
 #+END_SRC
 **** remove a class
@@ -1447,9 +1331,9 @@ apiFormatCode: req
 		              (#status -> #failed).
 		              (#msg -> msg).
 		              (#pos -> pos) } asDictionary ].
-	tree := type = 'code'
-		        ifTrue: [ RBParser parseExpression: source onError: errBlock ]
-		        ifFalse: [ RBParser parseMethod: source onError: errBlock ].
+	tree := type = 'method'
+		        ifTrue: [ RBParser parseMethod: source onError: errBlock ]
+		        ifFalse: [ RBParser parseExpression: source onError: errBlock ].
 	^ {
 		  (#status -> #success).
 		  (#source -> tree formattedCode) } asDictionary
@@ -1655,7 +1539,7 @@ apiBrowseImplementors: req
                          (org-entry-get (point) "literate-class" t)))))
                  (t
                   (user-error "Unknown supported type %s" type))))
-         (body (and code (decode-coding-string code 'latin-1-mac))))
+         (body (and code (literate-smalltalk-decode-string code))))
     (when body
       (let ((block-info (second (org-element-context))))
         (replace-region-contents (plist-get block-info :begin)
@@ -1801,7 +1685,7 @@ apiBrowseImplementors: req
                               " :side " (cdr (assoc 'side extension))
                               " :cat \"" (cdr (assoc 'category extension)) "\"")
                       (newline)
-                      (insert (decode-coding-string (cdr (assoc 'code extension)) 'latin-1-mac))
+                      (insert (literate-smalltalk-decode-string (cdr (assoc 'code extension))))
                       (newline)
                       (insert "#+END_SRC")
                       (newline))
@@ -1847,7 +1731,7 @@ Argument PARAMS: the input parameters."
                   'method)))
         (side (cdr (assq :side params)))
         (block-info (second (org-element-context)))
-        (code (encode-coding-string body 'latin-1-mac)))
+        (code (literate-smalltalk-encode-string body)))
     (case type
       (code (literate-smalltalk-eval code (not (null current-prefix-arg))))
       (method

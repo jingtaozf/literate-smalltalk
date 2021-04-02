@@ -139,38 +139,26 @@ LiterateServer class >> apiClasses: req [
 { #category : #'compiling api' }
 LiterateServer class >> apiCompileClass: req [
 
-	| instDef classDef parent class status instvars classvars |
-	instDef := (NeoJSONReader fromString: (req at: #instance)).
-	classDef := (NeoJSONReader fromString: (req at: #class)).
+	| receiver evaluationContext status |
 	status := #success.
-	instvars := ''.
-	(instDef at: #instvars) ifNotNil: [
-		instvars := self elementsString: (instDef at: #instvars) ].
-	classvars := ''.
-	(instDef at: #classvars) ifNotNil: [
-		classvars := self elementsString: (instDef at: #classvars) ].
+
+	receiver := interactionModel doItReceiver.
+	evaluationContext := interactionModel doItContext.
 
 	"Looks a bit kludgy, but currently I dont know how to make it better. TODO: refactor"
-	parent := Smalltalk at: (instDef at: #super) asSymbol.
-	[
-	class := parent
-		         subclass: (instDef at: #name) asSymbol
-		         instanceVariableNames: instvars
-		         classVariableNames: classvars
-		         poolDictionaries: ''
-		         category: (instDef at: #package) ]
+	[ 
+	receiver class compiler
+		source: (req at: #code);
+		context: evaluationContext;
+		receiver: receiver;
+		requestor: nil;
+		"As it is a remote request, we allow compiler handle messages such as exceptions"
+			evaluate ]
 		on: Error
-		do: [ :e |
-			^ {
-				  (#status -> #instFailed).
+		do: [ :e | 
+			^ { 
+				  (#status -> #failed).
 				  (#message -> e asString) } asDictionary ].
-	class := Smalltalk at: (instDef at: #name) asSymbol ifAbsent: [ nil ].
-	class comment: (instDef at: #comment).
-	"On Pharo, there were a strange exception when using the safe form."
-	instvars := ''.
-	(classDef at: #instvars) ifNotNil: [
-		instvars := self elementsString: (classDef at: #instvars) ].
-	class class instanceVariableNames: instvars.
 	^ { (#status -> status) } asDictionary
 ]
 
@@ -277,9 +265,9 @@ LiterateServer class >> apiFormatCode: req [
 		              (#status -> #failed).
 		              (#msg -> msg).
 		              (#pos -> pos) } asDictionary ].
-	tree := type = 'code'
-		        ifTrue: [ RBParser parseExpression: source onError: errBlock ]
-		        ifFalse: [ RBParser parseMethod: source onError: errBlock ].
+	tree := type = 'method'
+		        ifTrue: [ RBParser parseMethod: source onError: errBlock ]
+		        ifFalse: [ RBParser parseExpression: source onError: errBlock ].
 	^ {
 		  (#status -> #success).
 		  (#source -> tree formattedCode) } asDictionary
