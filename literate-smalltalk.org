@@ -360,8 +360,8 @@ literate-smalltalk-smalltalk-font-lock-keywords
                      (setf literate-smalltalk-last-response response)
                      (case (request-response-status-code response)
                        (200 (setf resp (request-response-data response)))
-                       (500 (error "Pharo failed:%s" (cdr (assoc 'message resp))))
-                       (t (error "Failed to request to remote pharo:%s" response)))))))
+                       (500 (user-error "Pharo failed:%s" (cdr (assoc 'message resp))))
+                       (t (user-error "Failed to request to remote pharo:%s" response)))))))
   (request-response-data literate-smalltalk-last-response))
 #+END_SRC
 * baseline for pharo
@@ -609,7 +609,7 @@ It is slow to build such indexed from remote pharo, let store it to a global var
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-namespace-of-a-class (class)
   (when (= 0 (hash-table-count literate-smalltalk-indexed-classes))
-    (error "Please build the cache before use namespace of a class."))
+    (user-error "Please build the cache before use namespace of a class."))
   (gethash class literate-smalltalk-indexed-classes))
 
 (defun literate-smalltalk-namespace-of-current-symbol ()
@@ -799,9 +799,9 @@ apiPackageExtensions: req
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-method-source (class method side)
   (unless class
-    (error "Please specifiy the class of current method!"))
+    (user-error "Please specifiy the class of current method!"))
   (unless side
-    (error "Please specifiy the side of current method!"))
+    (user-error "Please specifiy the side of current method!"))
   (let* ((resp (literate-smalltalk-request
                 "api/MethodSource"
                 :params `(("class" . ,class)
@@ -915,7 +915,7 @@ apiMethodSource: req
                                          "false"))))))
     (if (string= "success" (cdr (assoc 'status resp)))
       (cdr (assoc 'message resp))
-      (error "Failed to eval code:'%s'!" (cdr (assoc 'message resp))))))
+      (user-error "Failed to eval code:'%s'!" (cdr (assoc 'message resp))))))
 #+END_SRC
 **** local bindings
 #+BEGIN_SRC elisp
@@ -924,7 +924,7 @@ apiMethodSource: req
   (let ((resp (literate-smalltalk-request "api/EvalBindings")))
     (if (string= "success" (cdr (assoc 'status resp)))
       (cdr (assoc 'message resp))
-      (error "Failed to list bindings:'%s'!" (cdr (assoc 'message resp))))))
+      (user-error "Failed to list bindings:'%s'!" (cdr (assoc 'message resp))))))
 #+END_SRC
 **** eval current line or selected region
 #+BEGIN_SRC elisp
@@ -1088,10 +1088,10 @@ apiEvalBindings: req
            (class-data (literate-smalltalk-parse-class-definition class-code)))
       (unless instance-data
         (message "instance-code:'%s'" instance-code)
-        (error "Failed to get subclass information."))
+        (user-error "Failed to get subclass information."))
       (unless class-data
         (message "class-data: '%s'" class-code)
-        (error "Failed to get class information."))
+        (user-error "Failed to get class information."))
       (push (cons "comment" comment) instance-data)
       (let ((resp (literate-smalltalk-request
                    "api/CompileClass"
@@ -1110,11 +1110,11 @@ apiEvalBindings: req
 
 (defun literate-smalltalk-compile-method (class side category code block-info)
   (unless class
-    (error "Please specifiy the class of current method!"))
+    (user-error "Please specifiy the class of current method!"))
   (unless side
-    (error "Please specifiy the side of current method!"))
+    (user-error "Please specifiy the side of current method!"))
   (unless category
-    (error "Please specifiy the category of current method!"))
+    (user-error "Please specifiy the category of current method!"))
   (let* ((resp (literate-smalltalk-request
                 "api/CompileMethod"
                 :data `(("class" . ,class)
@@ -1178,7 +1178,7 @@ apiEvalBindings: req
     (unless (string= "success" (cdr (assoc 'status resp)))
       (when (fixnump (cdr (assoc 'pos resp)))
         (goto-char (+ code-start-point (cdr (assoc 'pos resp)))))
-      (error "Failed to format code at %s:%s!"
+      (user-error "Failed to format code at %s:%s!"
              (cdr (assoc 'pos resp))
              (cdr (assoc 'msg resp))))
     (decode-coding-string (cdr (assoc 'source resp)) 'latin-1-mac)))
@@ -1654,7 +1654,7 @@ apiBrowseImplementors: req
                          (pm-set-buffer (plist-get block-info :begin))
                          (org-entry-get (point) "literate-class" t)))))
                  (t
-                  (error "Unknown supported type %s" type))))
+                  (user-error "Unknown supported type %s" type))))
          (body (and code (decode-coding-string code 'latin-1-mac))))
     (when body
       (let ((block-info (second (org-element-context))))
@@ -1863,7 +1863,7 @@ Argument PARAMS: the input parameters."
       (class
        (literate-smalltalk-compile-class body))
       (t
-       (error "Unknown type %s" type)))))
+       (user-error "Unknown type %s" type)))))
 #+END_SRC
 ** execute all source codes in current header
 #+BEGIN_SRC elisp
@@ -1876,7 +1876,7 @@ Argument PARAMS: the input parameters."
     (if current-prefix-arg
       (setf end (point-max))
       (unless (eq 'headline (first element))
-        (error "Please move point to a headline.")))
+        (user-error "Please move point to a headline.")))
     (goto-char begin)
     (while (search-forward "#+BEGIN_SRC smalltalk" end t)
       (unless (search ":type code" (buffer-substring-no-properties (line-beginning-position)
