@@ -130,22 +130,16 @@ or execute in org mode by =org-babel-execute-src-block-maybe=.
 
 After compiling, it will show critiques by adding them as [[https://www.gnu.org/software/emacs/manual/html_node/elisp/Overlays.html][Overlays]].
 
-Please note that we use the following template for a class definition in a code block
+Please note that we use the following codes for a class definition in a code block
 #+begin_src smalltalk
-"
-The REST Server for LiterateSmalltalk.
-"
 Object subclass: #LiterateServer
     instanceVariableNames: ''
     classVariableNames: 'Server Started interactionModel transcriptLogStream'
-    package: 'LiterateSmalltalk'
-----------------------
+    package: 'LiterateSmalltalk'.
 LiterateServer class
-    instanceVariableNames: ''
+    instanceVariableNames: ''.
+LiterateServer comment: 'The REST Server for LiterateSmalltalk.'
 #+end_src
-The first part is the class comment, the second part is the =subclass= definition,
-the third part is the =class= definition.
-The separator line =----------------------= is necessary and should not be changed.
 ** format code block
 It is better to format code before compiling, you can do so by Emacs command [[https://github.com/jingtaozf/literate-smalltalk/blob/master/literate-smalltalk.org#command-to-code-format][literate-smalltalk-code-format-current-code-block]].
 ** show suggestions
