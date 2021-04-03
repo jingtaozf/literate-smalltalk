@@ -75,7 +75,7 @@ StartupPreferencesLoader default executeAtomicItems: { (StartupAction
 #+END_SRC
 So each time Pharo starts, it will start a HTTP server listening in local port =9092=, which Emacs can interact with.
 
-Of course, you can also add it via [[https://github.com/pharo-vcs/iceberg][Iceberge]] manually.
+Of course, you can also add it via [[https://github.com/pharo-vcs/iceberg][Iceberg]] manually.
 ** in Emacs
 In Emacs side, you should install Emacs library [[https://github.com/jingtaozf/literate-elisp][literate-elisp]] firstly, then load this library in Emacs like this:
 #+BEGIN_SRC elisp :load no
