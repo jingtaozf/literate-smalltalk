@@ -464,7 +464,6 @@ start
 	| teapot |
 	"extra check so that we don't close a Pool which wasn't open"
 	Started ifNotNil: [ Server stop ].
-	Transcript removeDependent: self.
 	Transcript addDependent: self.
 	teapot := Teapot configure: {
 			          (#defaultOutput -> #json).
@@ -543,7 +542,7 @@ abortReq: req status: status message: message
 bringToFront
 
 	"a way to bring pharo window to front"
-	LibC uniqueInstance system: 'xdotool search --name ''Pharo'' windowactivate  --sync key backslash'
+	LibC uniqueInstance system: 'xdotool search --name ''Pharo'' windowactivate'
 #+END_SRC
 *** release an Iceberg package to local file system.
 #+BEGIN_SRC smalltalk :side class :cat "utilities"
@@ -1226,7 +1225,6 @@ apiCompileClass: req
 	receiver := interactionModel doItReceiver.
 	evaluationContext := interactionModel doItContext.
 
-	"Looks a bit kludgy, but currently I dont know how to make it better. TODO: refactor"
 	[
 	receiver class compiler
 		source: (req at: #code);

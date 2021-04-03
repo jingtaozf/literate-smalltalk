@@ -43,11 +43,11 @@ LiterateServer class >> apiBrowseImplementors: req [
 	| methodName |
 	methodName := req
 		              at: #name
-		              ifAbsent: [ 
+		              ifAbsent: [
 		              self abortReq: req status: 'error' message: 'No name is specified.' ].
 	SystemNavigation default browseAllImplementorsOf: methodName asSymbol.
 	self bringToFront.
-	^ { 
+	^ {
 		  (#status -> #success).
 		  (#message -> 'Opend in Pharo') } asDictionary
 ]
@@ -145,8 +145,7 @@ LiterateServer class >> apiCompileClass: req [
 	receiver := interactionModel doItReceiver.
 	evaluationContext := interactionModel doItContext.
 
-	"Looks a bit kludgy, but currently I dont know how to make it better. TODO: refactor"
-	[ 
+	[
 	receiver class compiler
 		source: (req at: #code);
 		context: evaluationContext;
@@ -155,8 +154,8 @@ LiterateServer class >> apiCompileClass: req [
 		"As it is a remote request, we allow compiler handle messages such as exceptions"
 			evaluate ]
 		on: Error
-		do: [ :e | 
-			^ { 
+		do: [ :e |
+			^ {
 				  (#status -> #failed).
 				  (#message -> e asString) } asDictionary ].
 	^ { (#status -> status) } asDictionary
@@ -403,7 +402,7 @@ LiterateServer class >> asStringArray: items [
 LiterateServer class >> bringToFront [
 
 	"a way to bring pharo window to front"
-	LibC uniqueInstance system: 'xdotool search --name ''Pharo'' windowactivate  --sync key backslash'
+	LibC uniqueInstance system: 'xdotool search --name ''Pharo'' windowactivate'
 ]
 
 { #category : #management }
@@ -469,7 +468,6 @@ LiterateServer class >> start [
 	| teapot |
 	"extra check so that we don't close a Pool which wasn't open"
 	Started ifNotNil: [ Server stop ].
-	Transcript removeDependent: self.
 	Transcript addDependent: self.
 	teapot := Teapot configure: {
 			          (#defaultOutput -> #json).
