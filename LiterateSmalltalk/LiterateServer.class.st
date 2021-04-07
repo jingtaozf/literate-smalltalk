@@ -469,7 +469,7 @@ LiterateServer class >> start [
 	"extra check so that we don't close a Pool which wasn't open"
 	Started ifNotNil: [ Server stop ].
 	Transcript addDependent: self.
-	teapot := Teapot configure: {
+	teapot := Teapot configure: { 
 			          (#defaultOutput -> #json).
 			          (#port -> 9092).
 			          (#debugMode -> true).
@@ -481,12 +481,16 @@ LiterateServer class >> start [
 		pattern: '/api/<api>/*'
 		action: [ :req | self dispatch: req ];
 		output: #json;
-		exception: Exception -> [ :ex :req |
+		exception: Exception -> [ :ex :req | 
+				Transcript
+					show: 'bring pharo to front because of ';
+					show: ex asString;
+					cr.
 				self bringToFront.
 				ex pass.
-				ZnResponse serverError: (NeoJSONWriter toString: {
-									 (#status -> #fatal).
-									 (#message -> ex asString) } asDictionary) ];
+				ZnResponse serverError: (NeoJSONWriter toString: { 
+							 (#status -> #fatal).
+							 (#message -> ex asString) } asDictionary) ];
 		start.
 	interactionModel := StPlaygroundInteractionModel new owner: StPlaygroundPagePresenter new.
 	Started := true

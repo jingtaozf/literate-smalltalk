@@ -478,11 +478,15 @@ start
 		action: [ :req | self dispatch: req ];
 		output: #json;
 		exception: Exception -> [ :ex :req |
+				Transcript
+					show: 'bring pharo to front because of ';
+					show: ex asString;
+					cr.
 				self bringToFront.
 				ex pass.
 				ZnResponse serverError: (NeoJSONWriter toString: {
-									 (#status -> #fatal).
-									 (#message -> ex asString) } asDictionary) ];
+							 (#status -> #fatal).
+							 (#message -> ex asString) } asDictionary) ];
 		start.
 	interactionModel := StPlaygroundInteractionModel new owner: StPlaygroundPagePresenter new.
 	Started := true
