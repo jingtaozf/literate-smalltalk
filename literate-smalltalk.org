@@ -1064,21 +1064,26 @@ apiEvalBindings: req
 #+END_SRC
 **** API request to format code
 [[file:~/projects/smalltalk/pharo/src/Deprecated80/PluggableTextMorph.class.st::tree := RBParser parseMethod: source onError: \[ :msg :pos | ^ self \].][RBParser parseMethod]]
+We also support the =>>= method definition which includes class name, by removing =>>= part when pass code to format. 
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-format-code (code-start-point code type)
-  (let ((resp (literate-smalltalk-request
-               "api/FormatCode"
-               :data `(("source" . ,(literate-smalltalk-encode-string code))
-                         ("type" . ,type))
-               :type "POST")))
+  (let* ((>>code-position (search " >> " code))
+         (resp (literate-smalltalk-request
+                "api/FormatCode"
+                :data `(("source" . ,(literate-smalltalk-encode-string (if >>code-position
+                                                                         (subseq code (+ >>code-position 4))
+                                                                         code)))
+                        ("type" . ,type))
+                :type "POST")))
     (unless (string= "success" (cdr (assoc 'status resp)))
       (when (fixnump (cdr (assoc 'pos resp)))
         (goto-char (+ code-start-point (cdr (assoc 'pos resp)))))
       (user-error "Failed to format code at %s:%s!"
-             (cdr (assoc 'pos resp))
-             (cdr (assoc 'msg resp))))
-    (literate-smalltalk-decode-string (cdr (assoc 'source resp)))))
-
+                  (cdr (assoc 'pos resp))
+                  (cdr (assoc 'msg resp))))
+    (if >>code-position
+      (concat (subseq code 0 (+ >>code-position 4)) (literate-smalltalk-decode-string (cdr (assoc 'source resp))))
+      (literate-smalltalk-decode-string (cdr (assoc 'source resp))))))
 #+END_SRC
 **** API request to complete code at position
 #+BEGIN_SRC elisp
@@ -1129,11 +1134,15 @@ apiEvalBindings: req
      (plist-get context-info :begin)
      (plist-get context-info :end)
      (lambda ()
-       (let* ((beg-src-line (progn (goto-char (point-min))
-                                   (buffer-substring-no-properties
-                                    (line-beginning-position)
-                                    (line-end-position)))))
-         (concat beg-src-line "\n"
+       ;; FIXME: how to insert the #+NAME and #+BEGIN_SRC part.
+       (let* ((beg-src-part (let ((start (point-min))
+                                  (case-fold-search t))
+                              (goto-char start)
+                              (search-forward "#+BEGIN_SRC")
+                              (buffer-substring-no-properties
+                               start
+                               (line-end-position)))))
+         (concat beg-src-part "\n"
                  formatted-code "\n"
                  "#+END_SRC\n"))))
     (message "format code done.")))
