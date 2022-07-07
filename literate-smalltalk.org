@@ -786,7 +786,7 @@ apiPackageExtensions: req
           (newline)))
       (insert (format "%s comment: '%s'" (cdr (assoc 'class class))
                       (literate-smalltalk-decode-string (cdr (assoc 'comment instance)) :quote-string t)))
-      (trim-string (buffer-string)))))
+      (string-trim (buffer-string)))))
 #+END_SRC
 **** get class definition
 #+BEGIN_SRC elisp
