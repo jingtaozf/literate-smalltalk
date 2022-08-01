@@ -262,20 +262,19 @@ literate-smalltalk-smalltalk-font-lock-keywords
 ** encode string
 #+BEGIN_SRC elisp
 (cl-defun literate-smalltalk-encode-string (code &key unquote-string)
-  (encode-coding-string
    (if unquote-string
      (replace-regexp-in-string "''" "'" code)
-     code)
-   'latin-1-mac))
+     code))
 #+END_SRC
 ** decode string
 #+BEGIN_SRC elisp
 (cl-defun literate-smalltalk-decode-string (code &key quote-string)
   (decode-coding-string
-   (if quote-string
-     (replace-regexp-in-string "'" "''" code)
-     code)
-   'latin-1-mac))
+   (encode-coding-string
+    (if quote-string
+      (replace-regexp-in-string "'" "''" code)
+      code)
+    'latin-1-mac) 'utf-8))
 #+END_SRC
 
 ** select helm marked candidates
@@ -381,7 +380,7 @@ literate-smalltalk-smalltalk-font-lock-keywords
                      (setf literate-smalltalk-last-response response)
                      (case (request-response-status-code response)
                        (200 (setf resp (request-response-data response)))
-                       (500 (user-error "Pharo failed:%s" (cdr (assoc 'message resp))))
+                       (500 (user-error "Pharo failed:%s" (cdr (assoc 'message (request-response-data response)))))
                        (t (user-error "Failed to request to remote pharo:%s" response)))))))
   (request-response-data literate-smalltalk-last-response))
 #+END_SRC
