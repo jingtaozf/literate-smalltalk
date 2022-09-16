@@ -72,7 +72,8 @@
     - [[#pharo-2][Pharo]]
   - [[#compile-1][compile]]
     - [[#emacs-3][Emacs]]
-    - [[#command-to-code-format][command to code format]]
+    - [[#command-to-code-format-current-code-block][command to code format current code block]]
+    - [[#command-to-code-format-for-current-file][command to code format for current file]]
     - [[#command-to-delete-a-class-method][command to delete a class method]]
     - [[#code-completion-with-company-mode][code completion with company mode]]
     - [[#pharo-3][Pharo]]
@@ -1110,7 +1111,7 @@ We also support the =>>= method definition which includes class name, by removin
              ("name" . ,method)
              ("side" . ,side))))
 #+END_SRC
-*** command to code format
+*** command to code format current code block
 #+BEGIN_SRC elisp
 (defun literate-smalltalk-code-format-current-code-block ()
   (interactive)
@@ -1144,6 +1145,22 @@ We also support the =>>= method definition which includes class name, by removin
          (concat beg-src-part "\n"
                  formatted-code "\n"
                  "#+END_SRC\n"))))
+    (message "format code done.")))
+#+END_SRC
+
+
+*** command to code format for current file
+#+BEGIN_SRC elisp
+(defun literate-smalltalk-code-format-current-file ()
+  (interactive)
+  (let* ((code (buffer-substring-no-properties (point-min) (point-max)))
+         (code-start-point (point-min))
+         (type 'code)
+         (formatted-code (literate-smalltalk-format-code code-start-point code type)))
+    (replace-region-contents
+     (point-min)
+     (point-max)
+     (lambda () formatted-code))
     (message "format code done.")))
 #+END_SRC
 

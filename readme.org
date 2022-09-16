@@ -11,6 +11,7 @@
   - [[#in-emacs][in Emacs]]
 - [[#tutorial][Tutorial]]
   - [[#preparing-an-org-file][Preparing an org file]]
+  - [[#a-quick-references-to-useful-commands][A quick references to useful commands]]
   - [[#import-source-codes-of-some-packages][import source codes of some packages]]
   - [[#compile-a-code-block][compile a code block]]
   - [[#format-code-block][format code block]]
@@ -112,6 +113,22 @@ You can check the raw content of [[./literate-smalltalk.org]] to have a quick vi
 #+PROPERTY: literate-load yes
 #+PROPERTY: literate-lang smalltalk
 #+end_example
+** A quick references to useful commands
+#+BEGIN_SRC elisp :load no
+'(
+  ("package of class" literate-smalltalk-namespace-of-current-symbol)
+  ("bindings of evaluation" literate-smalltalk-eval-bindings)
+  ("c open definition of class" literate-smalltalk-browse-class)
+  ("Compile codes in current header" literate-smalltalk-execute-current-header)
+  ("execute codes" literate-smalltalk-execute-current-code-block)
+  ("delete current class method" literate-smalltalk-delete-current-class-or-method)
+  ("format code for current code block" literate-smalltalk-code-format-current-code-block)
+  ("Format code for current file" literate-smalltalk-code-format-current-file)
+  ("i open definition of implementors" literate-smalltalk-browse-implementors)
+  ("run current line or selected region" literate-smalltalk-eval-current-line-or-selected-region)
+  ("update codes" literate-smalltalk-update-source))
+#+END_SRC
+
 ** import source codes of some packages
 Generally speaking, the first step is importing some Smalltalk packages into our org file.
 
