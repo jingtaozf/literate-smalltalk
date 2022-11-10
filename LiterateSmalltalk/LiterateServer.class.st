@@ -205,8 +205,11 @@ LiterateServer class >> apiCompletionMethod: req [
 	| className source class context entities |
 	className := req at: #class.
 	source := req at: #source.
-	class := Smalltalk at:
-		         (className ifEmpty: [ #GTPlayground ] ifNotEmpty: [ className asSymbol ]).
+	class := Smalltalk
+		         at: (className
+				          ifEmpty: [ #GTPlayground ]
+				          ifNotEmpty: [ className asSymbol ])
+		         ifAbsent: #StPlayground. "Note that Pharo 11.0 uses this class."
 	context := CompletionContext
 		           engine: CompletionEngine new
 		           class: class
