@@ -784,8 +784,12 @@ apiPackageExtensions: req
                (text  (string-join items " ")))
           (insert (format "    %s '%s'."  (car each) text))
           (newline)))
-      (insert (format "%s comment: '%s'" (cdr (assoc 'class class))
-                      (literate-smalltalk-decode-string (cdr (assoc 'comment instance)) :quote-string t)))
+      (insert (format "%s comment: '%s'"
+                      (cdr (assoc 'class class))
+                      (let ((comment (literate-smalltalk-decode-string (cdr (assoc 'comment instance)) :quote-string t)))
+                        (if (string-prefix-p "Please comment me using the following template" comment)
+                            "todo."
+                          comment))))
       (string-trim (buffer-string)))))
 #+END_SRC
 **** get class definition
