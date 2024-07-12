@@ -972,9 +972,10 @@ apiEvalCode: req
 		          failBlock: [ ^ nil ];
 		          evaluate.
 
+  inspector := Smalltalk at: #GTInspector ifAbsent: [ Smalltalk at: #StInspector ].
 	openInspector ifTrue: [
 		self bringToFront.
-		GTInspector inspect: result ].
+		inspector inspect: result ].
 	^ {
 		  (#message -> result asString).
 		  (#status -> status) } asDictionary
@@ -984,7 +985,8 @@ apiEvalCode: req
 apiEvalBindings: req
 
 	self bringToFront.
-	GTInspector inspect: interactionModel bindings.
+  inspector := Smalltalk at: #GTInspector ifAbsent: [ Smalltalk at: #StInspector ].
+	inspector inspect: interactionModel bindings.
 	^ {
 		  (#status -> #success).
 		  (#message -> 'Inspector has been opened.') } asDictionary
