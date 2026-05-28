@@ -4,26 +4,6 @@
 #+OPTIONS:     num:nil toc:nil todo:nil tasks:nil tags:nil
 #+OPTIONS:     skip:nil author:nil email:nil creator:nil timestamp:t
 #+INFOJS_OPT:  view:nil toc:nil ltoc:t mouse:underline buttons:0 path:http://orgmode.org/org-info.js
-* Table of Contents                                                     :TOC:
-- [[#introduction][Introduction]]
-- [[#install][Install]]
-  - [[#in-pharo][in Pharo]]
-  - [[#in-emacs][in Emacs]]
-- [[#tutorial][Tutorial]]
-  - [[#preparing-an-org-file][Preparing an org file]]
-  - [[#a-quick-references-to-useful-commands][A quick references to useful commands]]
-  - [[#import-source-codes-of-some-packages][import source codes of some packages]]
-  - [[#compile-a-code-block][compile a code block]]
-  - [[#format-code-block][format code block]]
-  - [[#show-suggestions][show suggestions]]
-  - [[#delete-current-class-or-method][delete current class or method]]
-  - [[#update-source-code-block-from-pharo][update source code block from Pharo]]
-  - [[#eval-code-repl][eval code (REPL)]]
-  - [[#browse-class-or-implementors-in-pharo][browse class or implementors in Pharo]]
-  - [[#compile-all-source-code-blocks-inside-a-section][compile all source code blocks inside a section]]
-  - [[#release-current-package-to-local-file-system][release current package to local file system]]
-- [[#references][References]]
-
 * Introduction
 [[https://github.com/jingtaozf/literate-smalltalk][literate-smalltalk]] is an Emacs lisp library and a Smalltalk library to provide an easy way to use [[http://www.literateprogramming.com/][literal programming]] in Smalltalk.
 
